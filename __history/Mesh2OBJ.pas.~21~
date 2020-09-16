@@ -1,0 +1,226 @@
+unit Mesh2OBJ;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtDlgs, Vcl.StdCtrls,
+  System.StrUtils, System.generics.collections;
+
+type
+  PATCH = class
+    id: integer;
+    ter_def: integer;   //types listed in DSF file in order starting from 0
+    near_LOD: integer;
+    far_LOD: integer;
+    flag: integer;      //type of mesh: 1 - physics/collision; 2 - ov
+    num_point_coords: integer;
+  end;
+
+type
+  PRIMITIVE = class
+    id: integer;
+    prim_type: integer; //0 - Triangles;		1 - Triangle Strip; 		2 - Triangle Fan
+  end;
+
+type
+  PATCH_VERTEX = class
+    id: integer;
+      long,lat: real;  //degrees
+      height: integer;      //height in meters
+      x,z: real;   //coordinates of the point's normal vector as a fraction (where +X = east, and +Z = south)
+      primitive_id: integer; //parent
+  end;
+
+type
+  TForm1 = class(TForm)
+    DSFButton: TButton;
+    DSFTXTEdit: TEdit;
+    OpenTextFileDialog1: TOpenTextFileDialog;
+    Convert2OBJButton: TButton;
+    Memo1: TMemo;
+    procedure Convert2OBJ;
+    procedure DSFButtonClick(Sender: TObject);
+    procedure Convert2OBJButtonClick(Sender: TObject);
+    function Get_PatchVertex(CurrentLine: string): PATCH_VERTEX;
+    function Get_Primitive(CurrentLine: string): PRIMITIVE;
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+
+
+var
+  Form1: TForm1;
+  id_count: integer;
+  Land_VertexList, Sea_VertexList: TObjectList<PATCH_VERTEX>;
+  PrimitiveList: TObjectList<PRIMITIVE>;
+implementation
+
+{$R *.dfm}
+
+{Open DSF.txt file
+Store N S E W coordinates
+Find BEGIN_PATCH 0 //sea mesh
+Store BEGIN_PRIMITIVE //sea faces
+
+repeat
+  Find BEGIN_PATCH * * * 1 * //patches which represent physics/collision mesh
+  repeat
+    Store BEGIN_PRIMITIVEs
+  until END_PATCH
+until EOF
+
+//we will be ignoring the types of primitives for now
+convert all Primitives into mesh triangles
+
+export mesh triangles to OBJ with sea groups and land groups}
+procedure TForm1.Convert2OBJ;
+var SL: TStringList;
+    x, y: integer;
+    aPatchVertex: PATCH_VERTEX;
+
+    CurrentLine, value: string;
+begin
+  id_count := 0;
+  SL := TStringList.Create;
+  try
+//    Open DSF.txt file
+    SL.LoadFromFile(DSFTXTEdit.Text);
+    PrimitiveList := TObjectList<PRIMITIVE>.create;
+    Sea_VertexList := TObjectList<PATCH_VERTEX>.create;
+    Land_VertexList := TObjectList<PATCH_VERTEX>.create;
+//    Store N S E W coordinates
+
+//    Find BEGIN_PATCH 0 //sea mesh
+    x:= 0;
+    While x < SL.Count do
+    begin
+      If ContainsText(SL.Strings[x], 'BEGIN_PATCH 0') then
+      begin
+
+        repeat
+          inc(x);
+
+//          Store BEGIN_PRIMITIVE //sea faces
+          If ContainsText(SL.Strings[x], 'BEGIN_PRIMITIVE') then
+          begin
+            PrimitiveList.Add(Get_Primitive(SL.Strings[x]));
+            inc(x);
+          end;
+
+
+          If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
+            Sea_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
+
+        until SL.Strings[x] = 'END_PATCH';
+        break;
+      end;
+      inc(x);
+    end;
+
+    While x < SL.Count do
+    begin
+    CurrentLine := SL.Strings[x];
+      If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[33]='1')) then
+      begin
+        repeat
+          inc(x);
+          If ContainsText(SL.Strings[x], 'BEGIN_PRIMITIVE') then
+          begin
+            PrimitiveList.Add(Get_Primitive(SL.Strings[x]));
+            inc(x);
+          end;
+
+          If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
+            Land_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
+
+        until SL.Strings[x] = 'END_PATCH';
+      end;
+      inc(x);
+    end;
+  finally
+    SL.Free;
+  end;
+end;
+
+procedure TForm1.Convert2OBJButtonClick(Sender: TObject);
+begin
+  Convert2OBJ;
+end;
+
+procedure TForm1.DSFButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'TXT files (*.txt)|*.TXT';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    DSFTXTEdit.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
+
+function TForm1.Get_PatchVertex(CurrentLine: string): PATCH_VERTEX;
+var value: string;
+    x,y: integer;
+
+begin
+  result := PATCH_VERTEX.Create;
+  result.id:= id_count;
+  inc(id_count);
+
+  value := '';
+  y := Length('PATCH_VERTEX ')+1;
+
+  repeat
+    value:= value + CurrentLine[y];
+    inc(y);
+  until CurrentLine[y] = ' ';  //space delimiter
+  result.long:= StrToFloat(value);
+
+  value := '';
+  repeat
+    value:= value + CurrentLine[y];
+    inc(y);
+  until CurrentLine[y] = ' ';  //space delimiter
+  result.lat:= StrToFloat(value);
+
+  value := '';
+  repeat
+    value:= value + CurrentLine[y];
+    inc(y);
+  until CurrentLine[y] = ' ';  //space delimiter
+  result.height:= Trunc(StrToFloat(value));
+
+  value := '';
+  repeat
+    value:= value + CurrentLine[y];
+    inc(y);
+  until CurrentLine[y] = ' ';  //space delimiter
+  result.x:= StrToFloat(value);
+
+  value := '';
+  repeat
+    value:= value + CurrentLine[y];
+    inc(y);
+  until y >= length(CurrentLine);  //EoL
+  result.z:= StrToFloat(value);
+
+  result.primitive_id := PrimitiveList.Last.id;
+
+  Memo1.Lines.Add('Adding VERTEX - ID: '+IntToStr(result.id)+#9' Long: '+FloatToStr(result.long)+#9' Lat: '+FloatToStr(result.lat)+#9#9' Height: '+IntToStr(result.height)+#9' X: '+FloatToStr(result.x)+#9' Z: '+FloatToStr(result.z)+#9' Parent: '+IntToStr(result.primitive_id))
+end;
+
+function TForm1.Get_Primitive(CurrentLine: string): PRIMITIVE;
+begin
+  result := PRIMITIVE.Create;
+  result.id := id_count;
+  inc(id_count);
+
+  result.prim_type := StrToInt(CurrentLine[Length(CurrentLine)]);
+    Memo1.Lines.Add('Adding PRIMITIVE - ID: '+IntToStr(result.id)+#9' Type: '+IntToStr(result.prim_type))
+end;
+
+end.
+
