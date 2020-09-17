@@ -8,7 +8,7 @@ uses
   System.StrUtils, System.generics.collections;
 
 type
-  PATCH = class
+  TPATCH = class
     id: integer;
     ter_def: integer;   //types listed in DSF file in order starting from 0
     near_LOD: integer;
@@ -18,19 +18,29 @@ type
   end;
 
 type
-  PRIMITIVE = class
+  TPRIMITIVE = class
     id: integer;
     prim_type: integer; //0 - Triangles;		1 - Triangle Strip; 		2 - Triangle Fan
   end;
 
 type
-  PATCH_VERTEX = class
+  TPATCH_VERTEX = class
     id: integer;
       long,lat: real;  //degrees
       height: integer;      //height in meters
       x,z: real;   //coordinates of the point's normal vector as a fraction (where +X = east, and +Z = south)
       primitive_id: integer; //parent
   end;
+
+type TOBJ_Vertex = class
+  x,y,z: real;
+  constructor Create(aPatchVertex: TPATCH_VERTEX);
+end;
+
+type TOBJ_Face = Class
+  v1,v2,v3: integer;
+  constructor Create(v1,v2,v3: integer);
+End;
 
 type
   TForm1 = class(TForm)
@@ -39,11 +49,14 @@ type
     OpenTextFileDialog1: TOpenTextFileDialog;
     Convert2OBJButton: TButton;
     Memo1: TMemo;
-    procedure Convert2OBJ;
+    procedure ExtractPrimitives;
+    procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
     procedure Convert2OBJButtonClick(Sender: TObject);
-    function Get_PatchVertex(CurrentLine: string): PATCH_VERTEX;
-    function Get_Primitive(CurrentLine: string): PRIMITIVE;
+    function Get_PatchVertex(CurrentLine: string): TPATCH_VERTEX;
+    function Get_Primitive(CurrentLine: string): TPRIMITIVE;
+    procedure Triangles(prim_id: integer);
+    procedure ExportOBJ;
   private
     { Private declarations }
   public
@@ -55,8 +68,10 @@ type
 var
   Form1: TForm1;
   id_count: integer;
-  Land_VertexList, Sea_VertexList: TObjectList<PATCH_VERTEX>;
-  PrimitiveList: TObjectList<PRIMITIVE>;
+  Land_VertexList, Sea_VertexList: TObjectList<TPATCH_VERTEX>;
+  PrimitiveList: TObjectList<TPRIMITIVE>;
+  OBJ_Vertex_list: TObjectList<TOBJ_Vertex>;
+  OBJ_Face_List: TObjectList<TOBJ_Face>;
 implementation
 
 {$R *.dfm}
@@ -77,21 +92,38 @@ until EOF
 convert all Primitives into mesh triangles
 
 export mesh triangles to OBJ with sea groups and land groups}
-procedure TForm1.Convert2OBJ;
+
+constructor TOBJ_Vertex.Create(aPatchVertex: TPATCH_VERTEX);
+begin
+  self.x := aPatchVertex.long;
+  self.y := aPatchVertex.lat;
+  self.z := aPatchVertex.height;
+end;
+
+constructor TOBJ_Face.Create(v1,v2,v3: integer);
+begin
+  self.v1 := v1;
+  self.v2 := v2;
+  self.v3 := v3;
+end;
+
+procedure TForm1.ExtractPrimitives;
 var SL: TStringList;
     x, y: integer;
-    aPatchVertex: PATCH_VERTEX;
+    aPatchVertex: TPATCH_VERTEX;
 
     CurrentLine, value: string;
 begin
-  id_count := 0;
+  Memo1.Lines.Add('Starting Extraction of Primitives!');
+
+  id_count := 1;
   SL := TStringList.Create;
   try
 //    Open DSF.txt file
     SL.LoadFromFile(DSFTXTEdit.Text);
-    PrimitiveList := TObjectList<PRIMITIVE>.create;
-    Sea_VertexList := TObjectList<PATCH_VERTEX>.create;
-    Land_VertexList := TObjectList<PATCH_VERTEX>.create;
+    PrimitiveList := TObjectList<TPRIMITIVE>.create;
+    Sea_VertexList := TObjectList<TPATCH_VERTEX>.create;
+    Land_VertexList := TObjectList<TPATCH_VERTEX>.create;
 //    Store N S E W coordinates
 
 //    Find BEGIN_PATCH 0 //sea mesh
@@ -136,7 +168,7 @@ begin
             inc(x);
           end;
 
-          If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
+          If ContainsText(SL.Strings[x], 'ATCH_VERTEX') then
             Land_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
 
         until SL.Strings[x] = 'END_PATCH';
@@ -145,18 +177,50 @@ begin
 //      If x div 1000 = 0 then
 //        Memo1.Lines.Add('Line '+IntToStr(x));
     end;
+//    until EOF
+
+
     Memo1.Lines.Add(IntToStr(PrimitiveList.Count)+' Total Land and Sea Primitives');
     Memo1.Lines.Add('Added '+IntToStr(Land_VertexList.Count)+' Land Vertices');
 
   finally
     SL.Free;
-    Memo1.Lines.Add('Done!');
+    Memo1.Lines.Add('Done Extracting Primitives!');
   end;
+end;
+
+//we will be ignoring the types of primitives for now
+//convert all Primitives into mesh triangles
+procedure TForm1.Convert2Triangles;
+var aPrimitive: TPRIMITIVE;
+begin
+  Memo1.Lines.Add('Starting Conversion of Primitives to Trianglulated Mesh!');
+
+  For aPrimitive in PrimitiveList do
+  begin
+    Case aPrimitive.prim_type of
+      0:begin
+          Triangles(aPrimitive.id);
+        end;
+      1:begin
+//          TriangleStrip;
+        end;
+      2:begin
+//          TriangleFan;
+        end;
+      else Memo1.Lines.Add('Incorrect Primitive type. Expected integer 0,1 or 2. Got '+IntToStr(aPrimitive.prim_type))
+    End;
+  end;
+  Memo1.Lines.Add('Done Conversion to Mesh!');
 end;
 
 procedure TForm1.Convert2OBJButtonClick(Sender: TObject);
 begin
-  Convert2OBJ;
+  OBJ_Vertex_list := TObjectList<TOBJ_Vertex>.create;
+  OBJ_Face_List := TObjectList<TOBJ_Face>.create;
+  ExtractPrimitives;
+  Convert2Triangles;
+  ExportOBJ;
 end;
 
 procedure TForm1.DSFButtonClick(Sender: TObject);
@@ -169,12 +233,12 @@ begin
   end;
 end;
 
-function TForm1.Get_PatchVertex(CurrentLine: string): PATCH_VERTEX;
+function TForm1.Get_PatchVertex(CurrentLine: string): TPATCH_VERTEX;
 var value: string;
     x,y: integer;
 
 begin
-  result := PATCH_VERTEX.Create;
+  result := TPATCH_VERTEX.Create;
   result.id:= id_count;
   inc(id_count);
 
@@ -212,7 +276,7 @@ begin
   repeat
     value:= value + CurrentLine[y];
     inc(y);
-  until y >= length(CurrentLine);  //EoL
+  until ((CurrentLine[y] = ' ') or (y >= length(CurrentLine)));  //EoL
   result.z:= StrToFloat(value);
 
   result.primitive_id := PrimitiveList.Last.id;
@@ -220,9 +284,9 @@ begin
 //  Memo1.Lines.Add('Adding VERTEX - ID: '+IntToStr(result.id)+#9' Long: '+FloatToStr(result.long)+#9' Lat: '+FloatToStr(result.lat)+#9#9' Height: '+IntToStr(result.height)+#9' X: '+FloatToStr(result.x)+#9' Z: '+FloatToStr(result.z)+#9' Parent: '+IntToStr(result.primitive_id))
 end;
 
-function TForm1.Get_Primitive(CurrentLine: string): PRIMITIVE;
+function TForm1.Get_Primitive(CurrentLine: string): TPRIMITIVE;
 begin
-  result := PRIMITIVE.Create;
+  result := TPRIMITIVE.Create;
   result.id := id_count;
   inc(id_count);
 
@@ -230,5 +294,66 @@ begin
 //    Memo1.Lines.Add('Adding PRIMITIVE - ID: '+IntToStr(result.id)+#9' Type: '+IntToStr(result.prim_type))
 end;
 
+procedure TForm1.Triangles(prim_id: integer);
+var aPatchVertex: TPATCH_VERTEX;
+    x: integer;
+begin
+//   OBJ_Vertex_list.Clear;
+//   OBJ_Face_List.clear; //clear list to start over
+
+   If OBJ_Vertex_List.Count <> 0 then
+    x := OBJ_vertex_list.Count
+   else
+    x:= 0;
+   //iterate through all patch_vertices which have a parent_id matching prim_id
+   //convert their coords from degrees to xyz
+   //store in vertex_list
+   //create faces from groups of 3 and add to face list
+
+   For aPatchVertex in Land_VertexList do
+   begin
+     If aPatchVertex.primitive_id = prim_id then
+     begin
+      OBJ_Vertex_list.Add(TOBJ_Vertex.Create(aPatchVertex));
+     end;
+   end;
+
+   While x < OBJ_Vertex_list.Count do
+   begin
+    OBJ_Face_List.Add(TOBJ_Face.create(x, x+1, x+2));
+    inc(x,3);
+   end;
+end;
+
+procedure TForm1.ExportOBJ;
+var SL: TStringList;
+    aVertex: TOBJ_Vertex;
+    aFace: TOBJ_Face;
+begin
+  Memo1.Lines.Add('Starting OBJ Export!');
+
+  SL := TStringList.Create;
+  //header
+  SL.Text := '# Alias OBJ Model File'+sLineBreak+'# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards'+SLineBreak+'# File units = meters'+sLineBreak;
+
+  //Land Group Mesh
+  SL.Add(sLineBreak+'g Mesh1 Land Model'+sLineBreak);
+  For aVertex in OBJ_Vertex_list do
+  begin
+    SL.Add('v '+FloatToStr(aVertex.x)+' '+FloatToStr(aVertex.y)+' '+FloatToStr(aVertex.z));
+  end;
+
+  For aFace in OBJ_Face_List do
+  begin
+    SL.Add('f '+IntToStr(aFace.v1)+' '+IntToStr(aFace.v2)+' '+IntToStr(aFace.v3));
+  end;
+
+  Try
+    SL.SaveToFile(StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]));
+  Finally
+    SL.Free;
+  End;
+  Memo1.Lines.Add('OBJ Export Succesful!');
+end;
 end.
 

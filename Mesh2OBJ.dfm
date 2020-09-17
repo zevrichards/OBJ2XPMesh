@@ -29,7 +29,7 @@ object Form1: TForm1
     Height = 21
     Enabled = False
     TabOrder = 1
-    Text = 'E:\Richer Simulations Work\TVSA\XP Mesh Tool\default\+13-062.txt'
+    Text = 'C:\users\CSI\desktop\+13-062.txt'
   end
   object Convert2OBJButton: TButton
     Left = 368
