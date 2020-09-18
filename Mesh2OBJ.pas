@@ -13,7 +13,7 @@ type
     ter_def: integer;   //types listed in DSF file in order starting from 0
     near_LOD: integer;
     far_LOD: integer;
-    flag: integer;      //type of mesh: 1 - physics/collision; 2 - ov
+    flag: integer;      //type of mesh: 1 - physics/collision; 2 - overla
     num_point_coords: integer;
   end;
 
@@ -49,6 +49,7 @@ type
     OpenTextFileDialog1: TOpenTextFileDialog;
     Convert2OBJButton: TButton;
     Memo1: TMemo;
+    SaveDialog1: TSaveDialog;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -56,6 +57,8 @@ type
     function Get_PatchVertex(CurrentLine: string): TPATCH_VERTEX;
     function Get_Primitive(CurrentLine: string): TPRIMITIVE;
     procedure Triangles(prim_id: integer);
+    procedure TriangleStrip(prim_id: integer);
+    procedure TriangleFan(prim_id: integer);
     procedure ExportOBJ;
   private
     { Private declarations }
@@ -67,7 +70,7 @@ type
 
 var
   Form1: TForm1;
-  id_count: integer;
+  prim_count, vert_count: integer;
   Land_VertexList, Sea_VertexList: TObjectList<TPATCH_VERTEX>;
   PrimitiveList: TObjectList<TPRIMITIVE>;
   OBJ_Vertex_list: TObjectList<TOBJ_Vertex>;
@@ -116,7 +119,8 @@ var SL: TStringList;
 begin
   Memo1.Lines.Add('Starting Extraction of Primitives!');
 
-  id_count := 1;
+  prim_count := 0;
+  vert_count := 0;
   SL := TStringList.Create;
   try
 //    Open DSF.txt file
@@ -128,57 +132,61 @@ begin
 
 //    Find BEGIN_PATCH 0 //sea mesh
     x:= 0;
-    While x < SL.Count do
-    begin
-      If ContainsText(SL.Strings[x], 'BEGIN_PATCH 0') then
-      begin
-
-        repeat
-          inc(x);
-
-//          Store BEGIN_PRIMITIVE //sea faces
-          If ContainsText(SL.Strings[x], 'BEGIN_PRIMITIVE') then
-          begin
-            PrimitiveList.Add(Get_Primitive(SL.Strings[x]));
-            inc(x);
-          end;
-
-
-          If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
-            Sea_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
-
-        until SL.Strings[x] = 'END_PATCH';
-        break;
-      end;
-      inc(x);
-    end;
-    Memo1.Lines.Add('Added '+IntToStr(PrimitiveList.Count)+' Sea Primitives');
-    Memo1.Lines.Add('Added '+IntToStr(Sea_VertexList.Count)+' Sea Vertices');
+//    While x < SL.Count do
+//    begin
+//      If ContainsText(SL.Strings[x], 'BEGIN_PATCH 0') then
+//      begin
+//
+//        repeat
+//          inc(x);
+//
+////          Store BEGIN_PRIMITIVE //sea faces
+//          If ContainsText(SL.Strings[x], 'BEGIN_PRIMITIVE') then
+//          begin
+//            PrimitiveList.Add(Get_Primitive(SL.Strings[x]));
+//            inc(x);
+//          end;
+//
+//
+//          If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
+//            Sea_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
+//
+//        until SL.Strings[x] = 'END_PATCH';
+//        break;
+//      end;
+//      inc(x);
+//    end;
+//    Memo1.Lines.Add('Added '+IntToStr(PrimitiveList.Count)+' Sea Primitives');
+//    Memo1.Lines.Add('Added '+IntToStr(Sea_VertexList.Count)+' Sea Vertices');
 
     While x < SL.Count do
     begin
       CurrentLine := SL.Strings[x];
       If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[length(CurrentLine)-2]='1')) then
       begin
+
         repeat
           inc(x);
           If ContainsText(SL.Strings[x], 'BEGIN_PRIMITIVE') then
           begin
             PrimitiveList.Add(Get_Primitive(SL.Strings[x]));
             inc(x);
+
+            repeat
+              If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
+                Land_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
+              inc(x);
+            until SL.Strings[x] = 'END_PRIMITIVE';
+
           end;
 
-          If ContainsText(SL.Strings[x], 'ATCH_VERTEX') then
-            Land_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
-
         until SL.Strings[x] = 'END_PATCH';
+
       end;
       inc(x);
-//      If x div 1000 = 0 then
-//        Memo1.Lines.Add('Line '+IntToStr(x));
     end;
-//    until EOF
 
+//    until EOF
 
     Memo1.Lines.Add(IntToStr(PrimitiveList.Count)+' Total Land and Sea Primitives');
     Memo1.Lines.Add('Added '+IntToStr(Land_VertexList.Count)+' Land Vertices');
@@ -203,10 +211,10 @@ begin
           Triangles(aPrimitive.id);
         end;
       1:begin
-//          TriangleStrip;
+          TriangleStrip(aPrimitive.id);
         end;
       2:begin
-//          TriangleFan;
+          TriangleFan(aPrimitive.id);
         end;
       else Memo1.Lines.Add('Incorrect Primitive type. Expected integer 0,1 or 2. Got '+IntToStr(aPrimitive.prim_type))
     End;
@@ -238,9 +246,10 @@ var value: string;
     x,y: integer;
 
 begin
+  inc(vert_count);
   result := TPATCH_VERTEX.Create;
-  result.id:= id_count;
-  inc(id_count);
+  result.id:= vert_count;
+
 
   value := '';
   y := Length('PATCH_VERTEX ')+1;
@@ -279,16 +288,16 @@ begin
   until ((CurrentLine[y] = ' ') or (y >= length(CurrentLine)));  //EoL
   result.z:= StrToFloat(value);
 
-  result.primitive_id := PrimitiveList.Last.id;
+  result.primitive_id := prim_count;
 
 //  Memo1.Lines.Add('Adding VERTEX - ID: '+IntToStr(result.id)+#9' Long: '+FloatToStr(result.long)+#9' Lat: '+FloatToStr(result.lat)+#9#9' Height: '+IntToStr(result.height)+#9' X: '+FloatToStr(result.x)+#9' Z: '+FloatToStr(result.z)+#9' Parent: '+IntToStr(result.primitive_id))
 end;
 
 function TForm1.Get_Primitive(CurrentLine: string): TPRIMITIVE;
 begin
+  inc(prim_count);
   result := TPRIMITIVE.Create;
-  result.id := id_count;
-  inc(id_count);
+  result.id := prim_count;
 
   result.prim_type := StrToInt(CurrentLine[Length(CurrentLine)]);
 //    Memo1.Lines.Add('Adding PRIMITIVE - ID: '+IntToStr(result.id)+#9' Type: '+IntToStr(result.prim_type))
@@ -306,29 +315,125 @@ begin
    else
     x:= 0;
    //iterate through all patch_vertices which have a parent_id matching prim_id
-   //convert their coords from degrees to xyz
+   //convert their coords from degrees to xyz?
    //store in vertex_list
    //create faces from groups of 3 and add to face list
 
+   //iterate through all patch_vertices which have a parent_id matching prim_id
    For aPatchVertex in Land_VertexList do
    begin
      If aPatchVertex.primitive_id = prim_id then
      begin
+        //store in vertex_list
       OBJ_Vertex_list.Add(TOBJ_Vertex.Create(aPatchVertex));
      end;
    end;
 
    While x < OBJ_Vertex_list.Count do
    begin
-    OBJ_Face_List.Add(TOBJ_Face.create(x, x+1, x+2));
+    //create faces from groups of 3 and add to face list
+    OBJ_Face_List.Add(TOBJ_Face.create(x+3, x+2, x+1));
     inc(x,3);
    end;
+end;
+
+procedure TForm1.TriangleStrip(prim_id: integer);
+var aPatchVertex: TPATCH_VERTEX;
+    x: integer;
+begin
+
+
+   If OBJ_Vertex_List.Count <> 0 then
+    x := OBJ_vertex_list.Count+1
+   else
+    x:= 0;
+   //iterate through all patch_vertices which have a parent_id matching prim_id
+   //convert their coords from degrees to xyz?
+   //store in vertex_list
+   //create faces from first group of 3
+   //every face after that uses last 2 verts of last face
+
+   //iterate through all patch_vertices which have a parent_id matching prim_id
+   For aPatchVertex in Land_VertexList do
+   begin
+     If aPatchVertex.primitive_id = prim_id then
+     begin
+        //store in vertex_list
+      OBJ_Vertex_list.Add(TOBJ_Vertex.Create(aPatchVertex));
+     end;
+   end;
+
+   //create first triangle
+   If OBJ_Vertex_list.Count >= 3 then
+    OBJ_Face_List.Add(TOBJ_Face.create(x+1, x+2, x+3));
+   inc(x,3);
+
+   //every face after that uses last 2 verts of last face
+   While x < OBJ_Vertex_list.Count do
+   begin
+    //first in forward order...
+    OBJ_Face_List.Add(TOBJ_Face.create(x, x-1, x+1));
+    If x+1 < OBJ_Vertex_list.Count then //check to make sure that we still have more verts to read
+      //then in backward order to preserve upward facing polygons
+      OBJ_Face_List.Add(TOBJ_Face.create(x, x+1, x+2));
+    inc(x,2);
+   end;
+
+end;
+
+procedure TForm1.TriangleFan(prim_id: integer);
+var aPatchVertex: TPATCH_VERTEX;
+    central_vert, x: integer;
+begin
+
+
+   If OBJ_Vertex_List.Count <> 0 then
+   begin
+    x := OBJ_vertex_list.Count+1;
+    central_vert := x;
+   end
+   else
+   begin
+    x:= 0;
+    central_vert := x+1;
+   end;
+
+   //iterate through all patch_vertices which have a parent_id matching prim_id
+   //convert their coords from degrees to xyz?
+   //store in vertex_list
+   //create faces from first group of 3
+   //every face after that uses first vert in list, last vert used, and next vert in list
+
+   //iterate through all patch_vertices which have a parent_id matching prim_id
+   For aPatchVertex in Land_VertexList do
+   begin
+     If aPatchVertex.primitive_id = prim_id then
+     begin
+        //store in vertex_list
+      OBJ_Vertex_list.Add(TOBJ_Vertex.Create(aPatchVertex));
+     end;
+   end;
+
+   //create first triangle
+   If OBJ_Vertex_list.Count >= 3 then
+    OBJ_Face_List.Add(TOBJ_Face.create(x+3, x+2, central_vert));
+   inc(x,3);
+
+   //every face after that uses last 2 verts of last face
+   While x < OBJ_Vertex_list.Count do
+   begin
+    //first in forward order...
+    OBJ_Face_List.Add(TOBJ_Face.create(x+1, x, central_vert));
+    inc(x,1);
+   end;
+
 end;
 
 procedure TForm1.ExportOBJ;
 var SL: TStringList;
     aVertex: TOBJ_Vertex;
     aFace: TOBJ_Face;
+    SaveName: string;
 begin
   Memo1.Lines.Add('Starting OBJ Export!');
 
@@ -349,11 +454,22 @@ begin
   end;
 
   Try
-    SL.SaveToFile(StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]));
+    SaveName := StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]);
+    If FileExists(SaveName) then
+    begin
+      SaveDialog1.Filter := 'OBJ files (*.obj)|*.OBJ';
+      SaveDialog1.Options := [];
+      If SaveDialog1.Execute() then
+      begin
+        SaveName := SaveDialog1.FileName;
+      end;
+    end;
+    SL.SaveToFile(SaveName);
   Finally
     SL.Free;
   End;
   Memo1.Lines.Add('OBJ Export Succesful!');
 end;
+
 end.
 

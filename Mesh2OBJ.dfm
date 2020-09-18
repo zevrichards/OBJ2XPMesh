@@ -51,4 +51,8 @@ object Form1: TForm1
     Left = 800
     Top = 16
   end
+  object SaveDialog1: TSaveDialog
+    Left = 712
+    Top = 16
+  end
 end
