@@ -13,7 +13,7 @@ type
     ter_def: integer;   //types listed in DSF file in order starting from 0
     near_LOD: integer;
     far_LOD: integer;
-    flag: integer;      //type of mesh: 1 - physics/collision; 2 - ov
+    flag: integer;      //type of mesh: 1 - physics/collision; 2 - overla
     num_point_coords: integer;
   end;
 
@@ -49,6 +49,7 @@ type
     OpenTextFileDialog1: TOpenTextFileDialog;
     Convert2OBJButton: TButton;
     Memo1: TMemo;
+    SaveDialog1: TSaveDialog;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -57,7 +58,7 @@ type
     function Get_Primitive(CurrentLine: string): TPRIMITIVE;
     procedure Triangles(prim_id: integer);
     procedure TriangleStrip(prim_id: integer);
-//    procedure TriangleFan(prim_id: integer);
+    procedure TriangleFan(prim_id: integer);
     procedure ExportOBJ;
   private
     { Private declarations }
@@ -161,7 +162,7 @@ begin
     While x < SL.Count do
     begin
       CurrentLine := SL.Strings[x];
-      If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[length(CurrentLine)-2]='1')) then
+      If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[length(CurrentLine)-2]='1') and (CurrentLine[13]<>'0')) then   //a mesh poly that is used for collision and does not belong to the sea
       begin
 
         repeat
@@ -207,13 +208,13 @@ begin
   begin
     Case aPrimitive.prim_type of
       0:begin
-//          Triangles(aPrimitive.id);
+          Triangles(aPrimitive.id);
         end;
       1:begin
           TriangleStrip(aPrimitive.id);
         end;
       2:begin
-//          TriangleFan;
+          TriangleFan(aPrimitive.id);
         end;
       else Memo1.Lines.Add('Incorrect Primitive type. Expected integer 0,1 or 2. Got '+IntToStr(aPrimitive.prim_type))
     End;
@@ -364,17 +365,17 @@ begin
 
    //create first triangle
    If OBJ_Vertex_list.Count >= 3 then
-    OBJ_Face_List.Add(TOBJ_Face.create(x+3, x+2, x+1));
+    OBJ_Face_List.Add(TOBJ_Face.create(x+1, x+2, x+3));
    inc(x,3);
 
    //every face after that uses last 2 verts of last face
    While x < OBJ_Vertex_list.Count do
    begin
     //first in forward order...
-    OBJ_Face_List.Add(TOBJ_Face.create(x+1, x-1, x));
+    OBJ_Face_List.Add(TOBJ_Face.create(x, x-1, x+1));
     If x+1 < OBJ_Vertex_list.Count then //check to make sure that we still have more verts to read
       //then in backward order to preserve upward facing polygons
-      OBJ_Face_List.Add(TOBJ_Face.create(x+2, x+1, x));
+      OBJ_Face_List.Add(TOBJ_Face.create(x, x+1, x+2));
     inc(x,2);
    end;
 
@@ -382,13 +383,13 @@ end;
 
 procedure TForm1.TriangleFan(prim_id: integer);
 var aPatchVertex: TPATCH_VERTEX;
-    x: integer;
+    central_vert, x: integer;
 begin
 
 
    If OBJ_Vertex_List.Count <> 0 then
    begin
-    x := OBJ_vertex_list.Count+1
+    x := OBJ_vertex_list.Count+1;
     central_vert := x;
    end
    else
@@ -432,6 +433,7 @@ procedure TForm1.ExportOBJ;
 var SL: TStringList;
     aVertex: TOBJ_Vertex;
     aFace: TOBJ_Face;
+    SaveName: string;
 begin
   Memo1.Lines.Add('Starting OBJ Export!');
 
@@ -452,7 +454,17 @@ begin
   end;
 
   Try
-    SL.SaveToFile(StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]));
+    SaveName := StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]);
+    If FileExists(SaveName) then
+    begin
+      SaveDialog1.Filter := 'OBJ files (*.obj)|*.OBJ';
+      SaveDialog1.Options := [];
+      If SaveDialog1.Execute() then
+      begin
+        SaveName := SaveDialog1.FileName;
+      end;
+    end;
+    SL.SaveToFile(SaveName);
   Finally
     SL.Free;
   End;

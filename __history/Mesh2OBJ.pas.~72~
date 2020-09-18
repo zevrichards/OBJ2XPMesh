@@ -162,7 +162,7 @@ begin
     While x < SL.Count do
     begin
       CurrentLine := SL.Strings[x];
-      If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[length(CurrentLine)-2]='1')) then
+      If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[length(CurrentLine)-2]='1') and (CurrentLine[13]<>'0')) then   //a mesh poly that is used for collision and does not belong to the sea
       begin
 
         repeat
@@ -208,10 +208,10 @@ begin
   begin
     Case aPrimitive.prim_type of
       0:begin
-//          Triangles(aPrimitive.id);
+          Triangles(aPrimitive.id);
         end;
       1:begin
-//          TriangleStrip(aPrimitive.id);
+          TriangleStrip(aPrimitive.id);
         end;
       2:begin
           TriangleFan(aPrimitive.id);
@@ -346,7 +346,7 @@ begin
    If OBJ_Vertex_List.Count <> 0 then
     x := OBJ_vertex_list.Count+1
    else
-    x:= 0;
+    x:= 1;
    //iterate through all patch_vertices which have a parent_id matching prim_id
    //convert their coords from degrees to xyz?
    //store in vertex_list
@@ -363,20 +363,21 @@ begin
      end;
    end;
 
-   //create first triangle
+  { //create first triangle
    If OBJ_Vertex_list.Count >= 3 then
-    OBJ_Face_List.Add(TOBJ_Face.create(x+3, x+2, x+1));
-   inc(x,3);
+    OBJ_Face_List.Add(TOBJ_Face.create(x+1, x+2, x+3));
+   inc(x,2); }
 
    //every face after that uses last 2 verts of last face
    While x < OBJ_Vertex_list.Count do
    begin
     //first in forward order...
-    OBJ_Face_List.Add(TOBJ_Face.create(x+1, x-1, x));
-    If x+1 < OBJ_Vertex_list.Count then //check to make sure that we still have more verts to read
-      //then in backward order to preserve upward facing polygons
-      OBJ_Face_List.Add(TOBJ_Face.create(x+2, x+1, x));
+    If x+2 <= OBJ_Vertex_list.Count then
+      OBJ_Face_List.Add(TOBJ_Face.create(x, x+1, x+2));
     inc(x,2);
+    If x+1 <= OBJ_Vertex_list.Count then //check to make sure that we still have more verts to read
+      //then in backward order to preserve upward facing polygons
+      OBJ_Face_List.Add(TOBJ_Face.create(x, x-1, x+1));
    end;
 
 end;
