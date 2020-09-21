@@ -448,7 +448,7 @@ begin
       //insert vertices by 3s
       For z := 1 to 3 do
       begin
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_VertexList[y+z].lat/100000)+#9+FloatToStr(Inserted_VertexList[y+z].long/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_VertexList[y+z].long/100000)+#9+FloatToStr(Inserted_VertexList[y+z].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
         inc(x);
       end;
 

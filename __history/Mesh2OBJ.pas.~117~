@@ -374,7 +374,7 @@ end;
 //end;
 
 procedure TForm1.OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
-var x, Y: integer;
+var x,y,z: integer;
     aPatchVertex: TPATCH_VERTEX;
     CurrentLine, value: string;
 begin
@@ -402,7 +402,7 @@ begin
         value := '';
         y := Length('VT');
 
-        repeat inc(y) until TryStrToInt(CurrentLine[y], x);  //find first value as there may be a lot of white space
+        repeat inc(y) until (TryStrToInt(CurrentLine[y], x)) or ((CurrentLine[y]='-'));  //find first value as there may be a lot of white space
 
         repeat
           value:= value + CurrentLine[y];
@@ -415,7 +415,7 @@ begin
         until CurrentLine[y] = '.';
         repeat
           inc(y)
-        until (((CurrentLine[y] = ' ') or (CurrentLine[y] = #9)) and (TryStrToInt(CurrentLine[y+1], x)));  //skip Z value in the middle//skip Z value in the middle
+        until ( ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9)) and ((TryStrToInt(CurrentLine[y+1], x) or (CurrentLine[y+1]='-')) ));  //skip Z value in the middle//skip Z value in the middle
 
         value := '';
         repeat
@@ -438,18 +438,25 @@ begin
     //begin insertion of a single patch
     DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
     inc(x);
+
     //insert count/3 primitives
-    DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
-    inc(x);
-    For aPatchVertex in Inserted_VertexList do
+    For y := 0 to ((Inserted_VertexList.count-1) div 3) do
     begin
-    //insert vertices by 3s
-      DSF_SL.Insert(x,'PATCH_VERTEX '+FloatToStr(aPatchVertex.lat)+' '+FloatToStr(aPatchVertex.long)+' -32768.000000000 -0.000015259 -0.000015259)');
+      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+      inc(x);
+
+      //insert vertices by 3s
+      For z := 1 to 3 do
+      begin
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_VertexList[y+z].lat/100000)+#9+FloatToStr(Inserted_VertexList[y+z].long/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+        inc(x);
+      end;
+
+      //end primitive
+      DSF_SL.Insert(x,'END_PRIMITIVE');
       inc(x);
     end;
-    //end primitive
-    DSF_SL.Insert(x,'END_PRIMITIVE');
-    inc(x);
+
     //end single patch
     DSF_SL.Insert(x,'END_PATCH');
 
@@ -616,12 +623,12 @@ begin
   SL.Add(sLineBreak+'g Mesh1 Land Model'+sLineBreak);
   For aVertex in OBJ_Vertex_list do
   begin
-    SL.Add('v '+FloatToStr(aVertex.x)+' '+FloatToStr(aVertex.y)+' '+FloatToStr(aVertex.z));
+    SL.Add('v '+FloatToStr(aVertex.x*100000)+' '+FloatToStr(aVertex.y*100000)+' '+{FloatToStr(aVertex.z)}'0');
   end;
 
   For aFace in OBJ_Face_List do
   begin
-    SL.Add('f '+IntToStr(aFace.v1*100000)+' '+IntToStr(aFace.v2*100000)+' '+'0'{IntToStr(aFace.v3)});
+    SL.Add('f '+IntToStr(aFace.v1)+' '+IntToStr(aFace.v2)+' '+IntToStr(aFace.v3));
   end;
 
   Try
