@@ -1,0 +1,123 @@
+object Form1: TForm1
+  Left = 0
+  Top = 0
+  Caption = 'Form1'
+  ClientHeight = 411
+  ClientWidth = 852
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -11
+  Font.Name = 'Tahoma'
+  Font.Style = []
+  OldCreateOrder = False
+  PixelsPerInch = 96
+  TextHeight = 13
+  object PageControl1: TPageControl
+    Left = 8
+    Top = 8
+    Width = 841
+    Height = 395
+    ActivePage = OBJ2DSFPage
+    TabOrder = 0
+    object DSF2OBJPage: TTabSheet
+      Caption = 'DSF To OBJ'
+      object DSFButton: TButton
+        Left = 3
+        Top = 18
+        Width = 75
+        Height = 25
+        Caption = 'Load DSF.txt'
+        TabOrder = 0
+        OnClick = DSFButtonClick
+      end
+      object DSFTXTEdit: TEdit
+        Left = 84
+        Top = 20
+        Width = 652
+        Height = 21
+        Enabled = False
+        TabOrder = 1
+        Text = 'C:\users\CSI\desktop\+13-062.txt'
+      end
+      object Memo1: TMemo
+        Left = 3
+        Top = 67
+        Width = 828
+        Height = 262
+        TabOrder = 2
+      end
+      object Convert2OBJButton: TButton
+        Left = 368
+        Top = 339
+        Width = 121
+        Height = 25
+        Caption = 'Convert DSF to OBJ'
+        TabOrder = 3
+        OnClick = Convert2OBJButtonClick
+      end
+    end
+    object OBJ2DSFPage: TTabSheet
+      Caption = 'OBJ To DSF'
+      ImageIndex = 1
+      object OBJEdit: TEdit
+        Left = 92
+        Top = 28
+        Width = 655
+        Height = 21
+        Enabled = False
+        TabOrder = 0
+        Text = 'C:\users\CSI\desktop\+13-062.obj'
+      end
+      object OBJButton: TButton
+        Left = 3
+        Top = 26
+        Width = 86
+        Height = 25
+        Caption = 'Load OBJ'
+        TabOrder = 1
+        OnClick = OBJButtonClick
+      end
+      object Memo2: TMemo
+        Left = 3
+        Top = 96
+        Width = 828
+        Height = 237
+        TabOrder = 2
+      end
+      object OBJ2DSFButton: TButton
+        Left = 368
+        Top = 339
+        Width = 121
+        Height = 25
+        Caption = 'Convert OBJ to DSF'
+        TabOrder = 3
+        OnClick = OBJ2DSFButtonClick
+      end
+      object DSF2Edit: TEdit
+        Left = 95
+        Top = 57
+        Width = 652
+        Height = 21
+        Enabled = False
+        TabOrder = 4
+        Text = 'C:\users\CSI\desktop\+13-062.txt'
+      end
+      object DSF2EditButton: TButton
+        Left = 3
+        Top = 57
+        Width = 86
+        Height = 25
+        Caption = 'DSF.txt to Edit'
+        TabOrder = 5
+        OnClick = DSF2EditButtonClick
+      end
+    end
+  end
+  object OpenTextFileDialog1: TOpenTextFileDialog
+    Left = 816
+  end
+  object SaveDialog1: TSaveDialog
+    Left = 736
+  end
+end

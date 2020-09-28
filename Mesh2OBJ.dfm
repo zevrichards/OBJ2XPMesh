@@ -18,14 +18,10 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = OBJ2DSFPage
+    ActivePage = DSF2OBJPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 661
-      ExplicitHeight = 321
       object DSFButton: TButton
         Left = 3
         Top = 18
@@ -42,7 +38,7 @@ object Form1: TForm1
         Height = 21
         Enabled = False
         TabOrder = 1
-        Text = 'C:\users\CSI\desktop\+13-062.txt'
+        Text = 'C:\users\CSI\desktop\+13-062_edited.txt'
       end
       object Memo1: TMemo
         Left = 3
@@ -71,7 +67,7 @@ object Form1: TForm1
         Height = 21
         Enabled = False
         TabOrder = 0
-        Text = 'C:\users\CSI\desktop\+13-062.obj'
+        Text = 'C:\users\CSI\desktop\+13-062_TVSA.obj'
       end
       object OBJButton: TButton
         Left = 3

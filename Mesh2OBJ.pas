@@ -281,41 +281,43 @@ begin
 
 
   value := '';
-  y := Length('PATCH_VERTEX ')+1;
+  y := Length('PATCH_VERTEX');
+
+  repeat inc(y) until (TryStrToInt(CurrentLine[y], x)) or ((CurrentLine[y]='-'));  //find first value as there may be a lot of white space
 
   repeat
     value:= value + CurrentLine[y];
     inc(y);
-  until CurrentLine[y] = ' ';  //space delimiter
-  result.long:= StrToFloat(value);
-
-  value := '';
-  repeat
-    value:= value + CurrentLine[y];
-    inc(y);
-  until CurrentLine[y] = ' ';  //space delimiter
-  result.lat:= StrToFloat(value);
+  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
+  result.long:= StrToFloat(trim(value));
 
   value := '';
   repeat
     value:= value + CurrentLine[y];
     inc(y);
-  until CurrentLine[y] = ' ';  //space delimiter
-  result.height:= Trunc(StrToFloat(value));
+  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
+  result.lat:= StrToFloat(trim(value));
 
   value := '';
   repeat
     value:= value + CurrentLine[y];
     inc(y);
-  until CurrentLine[y] = ' ';  //space delimiter
-  result.x:= StrToFloat(value);
+  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
+  result.height:= Trunc(StrToFloat(trim(value)));        {will this limit resolution to integer values?}
 
   value := '';
   repeat
     value:= value + CurrentLine[y];
     inc(y);
-  until ((CurrentLine[y] = ' ') or (y >= length(CurrentLine)));  //EoL
-  result.z:= StrToFloat(value);
+  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
+  result.x:= StrToFloat(trim(value));
+
+  value := '';
+  repeat
+    value:= value + CurrentLine[y];
+    inc(y);
+  until (((CurrentLine[y] = ' ') or (CurrentLine[y] = #9)) or (y >= length(CurrentLine)));  //EoL
+  result.z:= StrToFloat(trim(value));
 
   result.primitive_id := prim_count;
 
@@ -376,11 +378,16 @@ end;
 procedure TForm1.OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
 var x,y,z: integer;
     aPatchVertex: TPATCH_VERTEX;
-    CurrentLine, value: string;
+    CurrentLine, value, IDX: string;
+    IDX_List: TList<string>;
+
+const Delimiters: array of char = [' ', #9];
+
 begin
 
 
   Inserted_VertexList := TObjectList<TPATCH_VERTEX>.create;
+  IDX_List := TList<string>.create;
 
   try
 
@@ -396,6 +403,7 @@ begin
     Memo2.Lines.Add('Building new vertex list...');
     For CurrentLine in OBJ_SL do
     begin
+
       If ContainsText(CurrentLine, 'VT') then
       begin
         aPatchVertex := TPATCH_VERTEX.create;
@@ -428,7 +436,11 @@ begin
   //      Memo2.Lines.Add('Vertex:'+FloatToStr(aPatchVertex.lat)+' '+FloatToStr(aPatchVertex.long));
       end;
 
+      If ContainsText(CurrentLine, 'IDX') then
+        IDX_List.AddRange(Copy(CurrentLine.Split(Delimiters),1,10));      //copy everything except the first element to the IDX list. {First element is the string 'IDX'/'IDX10'}
+
     end;
+
 
     //find insertion point for edits
     x := DSF_SL.IndexOf('RASTER_DEF bathymetry')+1;
@@ -438,7 +450,25 @@ begin
     //begin insertion of a single patch
     DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
     inc(x);
+    //begin primitive
+    DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+    inc(x);
 
+//    IDX_List.reverse;  //vertices need to be written backwards
+
+    For IDX in IDX_List do
+    begin
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_VertexList[StrToInt(IDX)].long/100000)+#9+FloatToStr(Inserted_VertexList[StrToInt(IDX)].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+      inc(x);
+
+//      If x > DSF_SL.IndexOf('RASTER_DEF bathymetry')+90000+2 then break;
+
+    end;
+
+    //end primitive
+    DSF_SL.Insert(x,'END_PRIMITIVE');
+    inc(x);
+ {
     //insert count/3 primitives
     For y := 0 to ((Inserted_VertexList.count-1) div 3) do
     begin
@@ -456,7 +486,7 @@ begin
       DSF_SL.Insert(x,'END_PRIMITIVE');
       inc(x);
     end;
-
+   }
     //end single patch
     DSF_SL.Insert(x,'END_PATCH');
 
@@ -464,6 +494,7 @@ begin
     DSF_SL.SaveToFile(StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
   finally
     aPatchVertex.Free;
+    IDX_List.Free;
 //    Inserted_VertexList.Free;
     Memo2.Lines.Add('Done!');
   end;
