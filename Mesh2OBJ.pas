@@ -53,13 +53,20 @@ type
     DSFTXTEdit: TEdit;
     Memo1: TMemo;
     OBJ2DSFPage: TTabSheet;
-    OBJEdit: TEdit;
-    OBJButton: TButton;
+    CombinedOBJEdit: TEdit;
+    CombinedOBJButton: TButton;
     Memo2: TMemo;
     Convert2OBJButton: TButton;
     OBJ2DSFButton: TButton;
     DSF2Edit: TEdit;
     DSF2EditButton: TButton;
+    WAVOBJRadioButton: TRadioButton;
+    XPOBJRadioButton: TRadioButton;
+    CombinedOBJCheckBox: TCheckBox;
+    LandOBJButton: TButton;
+    LandOBJEdit: TEdit;
+    SeaOBJButton: TButton;
+    SeaOBJEdit: TEdit;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -70,11 +77,15 @@ type
     procedure TriangleStrip(prim_id: integer);
     procedure TriangleFan(prim_id: integer);
     procedure ExportOBJ;
-    procedure OBJButtonClick(Sender: TObject);
+    procedure CombinedOBJButtonClick(Sender: TObject);
     procedure OBJ2DSFButtonClick(Sender: TObject);
     procedure DSF2EditButtonClick(Sender: TObject);
 //    procedure DeletePrimitives(DSF_SL: TStringList);
     procedure OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
+    procedure XPOBJRadioButtonClick(Sender: TObject);
+    procedure WAVOBJRadioButtonClick(Sender: TObject);
+    procedure OBJ2DSFPageContextPopup(Sender: TObject; MousePos: TPoint;
+      var Handled: Boolean);
   private
     { Private declarations }
   public
@@ -352,6 +363,12 @@ begin
 
 end;
 
+procedure TForm1.OBJ2DSFPageContextPopup(Sender: TObject; MousePos: TPoint;
+  var Handled: Boolean);
+begin
+
+end;
+
 //procedure TForm1.DeletePrimitives(DSF_SL: TStringList);
 //var x: integer;
 //begin
@@ -366,16 +383,17 @@ var x,y,z: integer;
     CurrentLine, value, IDX: string;
     IDX_List: TList<string>;
 
-const Delimiters: array of char = [' ', #9];
+const Delimiters: array of char = [' ', #9, '/', '\'];
 
 begin
 
 
-  Inserted_VertexList := TObjectList<TPATCH_VERTEX>.create;
+  Inserted_Sea_VertexList := TObjectList<TPATCH_VERTEX>.create;
+  Inserted_Land_VertexList := TObjectList<TPATCH_VERTEX>.create;
   IDX_List := TList<string>.create;
 
   try
-
+    {delete all references to land and sea collision mesh in DSF.txt file}
     Memo2.Lines.Add('Removing original mesh.');
     x:= DSF_SL.count-1;
     While x > 0 do
@@ -385,9 +403,124 @@ begin
       dec(x);
     end;
 
-    Memo2.Lines.Add('Building new vertex list...');
+    ////////////////COMBINED WAVEFRONT OBJ//////////////////////////
+    {Collect Sea Vertices}
+    x := 0;
+    lat := 1;
+    lon := 3;
+    repeat
+      inc(x);
+    until ContainsText(OBJ_SL.Strings[x],'Sea'); //search for Sea Mesh Group
+    repeat
+      inc(x);
+    until ContainsText(OBJ_SL.Strings[x],'v ');   //search for first sea vertex
+
+    repeat
+      CurrentLine := OBJ_SL.Strings[x];
+
+      aPatchVertex := TPATCH_VERTEX.create;
+
+      aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]);
+      aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]);
+      Inserted_Sea_VertexList.Add(aPatchVertex);
+      inc(x)
+    until not ContainsText(CurrentLine, 'v ');
+
+    {Then Land Primitives}
+    x := 0;
+    repeat
+      inc(x);
+    until ContainsText(OBJ_SL.Strings[x],'Land'); //search for Land Mesh Group
+    repeat
+      inc(x);
+    until ContainsText(OBJ_SL.Strings[x],'v ');   //search for first sea vertex
+
+    repeat
+      CurrentLine := OBJ_SL.Strings[x];
+
+      aPatchVertex := TPATCH_VERTEX.create;
+
+      aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]);
+      aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]);
+      Inserted_Land_VertexList.Add(aPatchVertex);
+      inc(x)
+    until not ContainsText(CurrentLine, 'v ');
+
+    ////////////////////COLLECT INDEXES IF THIS IS AN XP OBJ/////////////////
+//    repeat
+//      inc(x);
+//    until ContainsText(OBJ_SL.Strings[x], 'IDX');
+//    repeat
+//      CurrentLine := OBJ_SL.Strings[x];
+//      IDX_List.AddRange(Copy(CurrentLine.Split(Delimiters),1,10));      //copy everything except the first element to the IDX list. {First element is the string 'IDX'/'IDX10'}
+//      inc(x);
+//    until not ContainsText(CurrentLine, 'IDX');
+    ///////////////
+
+    ///////////////////COLLECT FACES IF THIS IS A WAV OBJ////////////////////
+    {Check to see if file contains VTs and VNs
+    if both face vertices are located at 1 4 and 7
+    if only one they are at 1 3 and 5
+    if none they are at 1 2 and 3}
+
+    If ((ContainsText(OBJ_SL.Text, 'vt ')) and (ContainsText(OBJ_SL.Text, 'vn ')) then
+    begin
+      v2:= 4;
+      v3:= 7;
+    end
+    else
+    begin
+      If ((ContainsText(OBJ_SL.Text, 'vt ')) or (ContainsText(OBJ_SL.Text, 'vn ')) then
+      begin
+        v2:= 3;
+        v3:= 5;
+      end
+      else
+      begin
+        v2:= 2;
+        v3:= 3;
+      end;
+    end;
+
+    x := 0;
+    repeat
+      inc(x);
+    until ContainsText(OBJ_SL.Strings[x],'Sea'); //search for Sea Mesh Group
+    repeat
+      inc(x);
+    until ContainsText(OBJ_SL.Strings[x], 'f '); //search for first face
+    repeat
+      CurrentLine := OBJ_SL.Strings[x];
+      //pick the vertex indices from the face table
+      Sea_Face_List.Add(CurrentLine.Split(Delimiters)[1]);
+      Sea_Face_List.Add(CurrentLine.Split(Delimiters)[v2]);
+      Sea_Face_List.Add(CurrentLine.Split(Delimiters)[v3]);
+      inc(x);
+    until not ContainsText(CurrentLine, 'f');
+
+    x := 0;
+    repeat
+      inc(x);
+    until ContainsText(OBJ_SL.Strings[x],'Land'); //search for Land Mesh Group
+    repeat
+      inc(x);
+    until ContainsText(OBJ_SL.Strings[x], 'f '); //search for first face
+    repeat
+      CurrentLine := OBJ_SL.Strings[x];
+      //pick the vertex indices from the face table
+      Land_Face_List.Add(CurrentLine.Split(Delimiters)[1]);
+      Land_Face_List.Add(CurrentLine.Split(Delimiters)[v2]);
+      Land_Face_List.Add(CurrentLine.Split(Delimiters)[v3]);
+      inc(x);
+    until not ContainsText(CurrentLine, 'f');
+    /////////////////////
+
+
+{    Memo2.Lines.Add('Building New vertex list...');
     For CurrentLine in OBJ_SL do
     begin
+
+
 
       If ContainsText(CurrentLine, 'VT') then
       begin
@@ -419,10 +552,8 @@ begin
 
         Inserted_VertexList.Add(aPatchVertex);
   //      Memo2.Lines.Add('Vertex:'+FloatToStr(aPatchVertex.lat)+' '+FloatToStr(aPatchVertex.long));
-      end;
+      end; }
 
-      If ContainsText(CurrentLine, 'IDX') then
-        IDX_List.AddRange(Copy(CurrentLine.Split(Delimiters),1,10));      //copy everything except the first element to the IDX list. {First element is the string 'IDX'/'IDX10'}
 
     end;
 
@@ -432,27 +563,60 @@ begin
 
     Memo2.Lines.Add('Inserting edited mesh.');
 
-    //begin insertion of a single patch
+
+    ///////////////////////////USE FACE VERTEX ORDERS FOR WAVEFRONT OBJ///////////////////////
+    //begin insertion of a single??? sea patch
+    DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
+    inc(x);
+    //begin primitive
+    DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+    inc(x);
+    For Face in Sea_Face_List do
+    begin
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_Sea_VertexList[StrToInt(Face)].long/100000)+#9+FloatToStr(Inserted_Sea_VertexList[StrToInt(Face)].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+      inc(x);
+    end;
+    DSF_SL.Insert(x,'END_PRIMITIVE');
+    inc(x);
+    DSF_SL.Insert(x,'END_PATCH');
+    inc(x);
+
+    //begin insertion of a single??? land patch
     DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
     inc(x);
     //begin primitive
     DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
     inc(x);
+    For Face in Land_Face_List do
+    begin
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_Land_VertexList[StrToInt(Face)].long/100000)+#9+FloatToStr(Inserted_Land_VertexList[StrToInt(Face)].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+      inc(x);
+    end;
+    DSF_SL.Insert(x,'END_PRIMITIVE');
+    inc(x);
+    DSF_SL.Insert(x,'END_PATCH');
+    inc(x);
+    ////////////////////////////////////////
 
-//    IDX_List.reverse;  //vertices need to be written backwards
-
+    ///////////////////////////USE INDEXES TO PLACE VERTICES FOR XP OBJ///////////////////////
+    //begin insertion of a single??? sea patch
+    DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
+    inc(x);
+    //begin primitive
+    DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+    inc(x);
     For IDX in IDX_List do
     begin
       DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_VertexList[StrToInt(IDX)].long/100000)+#9+FloatToStr(Inserted_VertexList[StrToInt(IDX)].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
       inc(x);
-
-//      If x > DSF_SL.IndexOf('RASTER_DEF bathymetry')+90000+2 then break;
-
     end;
-
-    //end primitive
     DSF_SL.Insert(x,'END_PRIMITIVE');
     inc(x);
+    DSF_SL.Insert(x,'END_PATCH');
+    inc(x);
+    ////////////////////////////////////////
+
+
  {
     //insert count/3 primitives
     For y := 0 to ((Inserted_VertexList.count-1) div 3) do
@@ -473,7 +637,7 @@ begin
     end;
    }
     //end single patch
-    DSF_SL.Insert(x,'END_PATCH');
+
 
     Memo2.Lines.Add('Saving new DSF.');
     DSF_SL.SaveToFile(StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
@@ -486,13 +650,42 @@ begin
 end;
 
 
-procedure TForm1.OBJButtonClick(Sender: TObject);
+procedure TForm1.CombinedOBJButtonClick(Sender: TObject);
 begin
   OpenTextFileDialog1.Filter := 'OBJ files (*.obj)|*.OBJ';
   OpenTextFileDialog1.Options := [];
   If OpenTextFileDialog1.Execute() then
   begin
     OBJEdit.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
+
+procedure TForm1.WAVOBJRadioButtonClick(Sender: TObject);
+begin
+  With self do
+  begin
+    If checked then
+    begin
+      CombinedOBJCheckBox.Enabled := true;
+      CombinedOBJButton.Enabled := true;
+      LandOBJButton.Enabled := false;
+      SeaOBJButton.Enabled := false;
+    end;
+  end;
+end;
+
+procedure TForm1.XPOBJRadioButtonClick(Sender: TObject);
+begin
+  With self do
+  begin
+    If checked then
+    begin
+      CombinedOBJCheckBox.Checked := false;
+      CombinedOBJCheckBox.Enabled := false;
+      CombinedOBJButton.Enabled := false;
+      LandOBJButton.Enabled := true;
+      SeaOBJButton.Enabled := true;
+    end;
   end;
 end;
 

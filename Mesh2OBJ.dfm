@@ -18,7 +18,7 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = DSF2OBJPage
+    ActivePage = OBJ2DSFPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
@@ -60,29 +60,31 @@ object Form1: TForm1
     object OBJ2DSFPage: TTabSheet
       Caption = 'OBJ To DSF'
       ImageIndex = 1
-      object OBJEdit: TEdit
-        Left = 92
-        Top = 28
-        Width = 655
+      OnContextPopup = OBJ2DSFPageContextPopup
+      ExplicitLeft = 0
+      object CombinedOBJEdit: TEdit
+        Left = 319
+        Top = 54
+        Width = 511
         Height = 21
         Enabled = False
         TabOrder = 0
         Text = 'C:\users\CSI\desktop\+13-062_TVSA.obj'
       end
-      object OBJButton: TButton
-        Left = 3
-        Top = 26
-        Width = 86
+      object CombinedOBJButton: TButton
+        Left = 208
+        Top = 52
+        Width = 105
         Height = 25
-        Caption = 'Load OBJ'
+        Caption = 'Load Combined OBJ'
         TabOrder = 1
-        OnClick = OBJButtonClick
+        OnClick = CombinedOBJButtonClick
       end
       object Memo2: TMemo
         Left = 3
-        Top = 96
+        Top = 168
         Width = 828
-        Height = 237
+        Height = 165
         TabOrder = 2
       end
       object OBJ2DSFButton: TButton
@@ -96,7 +98,7 @@ object Form1: TForm1
       end
       object DSF2Edit: TEdit
         Left = 95
-        Top = 57
+        Top = 9
         Width = 652
         Height = 21
         Enabled = False
@@ -105,12 +107,80 @@ object Form1: TForm1
       end
       object DSF2EditButton: TButton
         Left = 3
-        Top = 57
+        Top = 9
         Width = 86
         Height = 25
         Caption = 'DSF.txt to Edit'
         TabOrder = 5
         OnClick = DSF2EditButtonClick
+      end
+      object WAVOBJRadioButton: TRadioButton
+        Left = 3
+        Top = 56
+        Width = 113
+        Height = 17
+        Caption = 'Wavefront OBJ'
+        Checked = True
+        TabOrder = 6
+        TabStop = True
+        OnClick = WAVOBJRadioButtonClick
+      end
+      object XPOBJRadioButton: TRadioButton
+        Left = 3
+        Top = 79
+        Width = 113
+        Height = 17
+        Caption = 'X-Plane OBJ'
+        TabOrder = 7
+        OnClick = XPOBJRadioButtonClick
+      end
+      object CombinedOBJCheckBox: TCheckBox
+        Left = 4
+        Top = 115
+        Width = 197
+        Height = 15
+        Caption = 'Sea and Land Combined in single OBJ'
+        Checked = True
+        State = cbChecked
+        TabOrder = 8
+      end
+      object LandOBJButton: TButton
+        Left = 208
+        Top = 81
+        Width = 105
+        Height = 25
+        Caption = 'Load Land OBJ'
+        Enabled = False
+        TabOrder = 9
+        OnClick = CombinedOBJButtonClick
+      end
+      object LandOBJEdit: TEdit
+        Left = 319
+        Top = 83
+        Width = 511
+        Height = 21
+        Enabled = False
+        TabOrder = 10
+        Text = 'C:\users\CSI\desktop\+13-062_TVSA.obj'
+      end
+      object SeaOBJButton: TButton
+        Left = 207
+        Top = 112
+        Width = 105
+        Height = 25
+        Caption = 'Load Sea OBJ'
+        Enabled = False
+        TabOrder = 11
+        OnClick = CombinedOBJButtonClick
+      end
+      object SeaOBJEdit: TEdit
+        Left = 318
+        Top = 115
+        Width = 511
+        Height = 21
+        Enabled = False
+        TabOrder = 12
+        Text = 'C:\users\CSI\desktop\+13-062_TVSA.obj'
       end
     end
   end
