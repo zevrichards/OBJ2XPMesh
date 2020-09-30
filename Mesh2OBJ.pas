@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtDlgs, Vcl.StdCtrls,
-  System.StrUtils, System.generics.collections, Vcl.ComCtrls;
+  System.StrUtils, System.generics.collections, Vcl.ComCtrls, system.Math;
 
 type
   TPATCH = class
@@ -39,7 +39,8 @@ end;
 
 type TOBJ_Face = Class
   v1,v2,v3: integer;
-  constructor Create(v1,v2,v3: integer);
+  Group: string;
+  constructor Create(v1,v2,v3: integer; group: string);
 End;
 
 type
@@ -87,7 +88,7 @@ var
   prim_count, vert_count: integer;
   Land_VertexList, Sea_VertexList, Inserted_VertexList: TObjectList<TPATCH_VERTEX>;
   PrimitiveList: TObjectList<TPRIMITIVE>;
-  OBJ_Vertex_list: TObjectList<TOBJ_Vertex>;
+  OBJ_Vertex_list_Land, OBJ_Vertex_list_Sea: TObjectList<TOBJ_Vertex>;
   OBJ_Face_List: TObjectList<TOBJ_Face>;
 implementation
 
@@ -117,11 +118,12 @@ begin
   self.z := aPatchVertex.height;
 end;
 
-constructor TOBJ_Face.Create(v1,v2,v3: integer);
+constructor TOBJ_Face.Create(v1,v2,v3: integer; Group: string);
 begin
   self.v1 := v1;
   self.v2 := v2;
   self.v3 := v3;
+  self.Group := Group;
 end;
 
 procedure TForm1.ExtractPrimitives;
@@ -146,37 +148,11 @@ begin
 
 //    Find BEGIN_PATCH 0 //sea mesh
     x:= 0;
-//    While x < SL.Count do
-//    begin
-//      If ContainsText(SL.Strings[x], 'BEGIN_PATCH 0') then
-//      begin
-//
-//        repeat
-//          inc(x);
-//
-////          Store BEGIN_PRIMITIVE //sea faces
-//          If ContainsText(SL.Strings[x], 'BEGIN_PRIMITIVE') then
-//          begin
-//            PrimitiveList.Add(Get_Primitive(SL.Strings[x]));
-//            inc(x);
-//          end;
-//
-//
-//          If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
-//            Sea_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
-//
-//        until SL.Strings[x] = 'END_PATCH';
-//        break;
-//      end;
-//      inc(x);
-//    end;
-//    Memo1.Lines.Add('Added '+IntToStr(PrimitiveList.Count)+' Sea Primitives');
-//    Memo1.Lines.Add('Added '+IntToStr(Sea_VertexList.Count)+' Sea Vertices');
 
     While x < SL.Count do
     begin
       CurrentLine := SL.Strings[x];
-      If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[length(CurrentLine)-2]='1') and (CurrentLine[13]<>'0')) then   //a mesh poly that is used for collision and does not belong to the sea
+      If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[length(CurrentLine)-2]='1')) then   //a mesh poly that is used for collision and does not belong to the sea
       begin
 
         repeat
@@ -188,7 +164,12 @@ begin
 
             repeat
               If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
-                Land_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
+              begin
+                If (CurrentLine[13]='0')  then          //check for land or sea patch based on BEGIN_PATCH line
+                  Sea_VertexList.Add(Get_PatchVertex(SL.Strings[x]))
+                else
+                  Land_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
+              end;
               inc(x);
             until SL.Strings[x] = 'END_PRIMITIVE';
 
@@ -197,6 +178,7 @@ begin
         until SL.Strings[x] = 'END_PATCH';
 
       end;
+
       inc(x);
     end;
 
@@ -204,6 +186,7 @@ begin
 
     Memo1.Lines.Add(IntToStr(PrimitiveList.Count)+' Total Land and Sea Primitives');
     Memo1.Lines.Add('Added '+IntToStr(Land_VertexList.Count)+' Land Vertices');
+    Memo1.Lines.Add('Added '+IntToStr(Sea_VertexList.Count)+' Sea Vertices');
 
   finally
     SL.Free;
@@ -239,13 +222,15 @@ end;
 procedure TForm1.Convert2OBJButtonClick(Sender: TObject);
 begin
   try
-    OBJ_Vertex_list := TObjectList<TOBJ_Vertex>.create;
+    OBJ_Vertex_list_Land := TObjectList<TOBJ_Vertex>.create;
+    OBJ_Vertex_list_Sea := TObjectList<TOBJ_Vertex>.create;
     OBJ_Face_List := TObjectList<TOBJ_Face>.create;
     ExtractPrimitives;
     Convert2Triangles;
     ExportOBJ;
   finally
-    OBJ_Vertex_list.Free;
+    OBJ_Vertex_list_Land.Free;
+    OBJ_Vertex_list_Sea.Free;
     OBJ_Face_List.Free;
   end;
 end;
@@ -513,19 +498,23 @@ end;
 
 procedure TForm1.Triangles(prim_id: integer);
 var aPatchVertex: TPATCH_VERTEX;
-    x: integer;
+    x,y: integer;
 begin
 //   OBJ_Vertex_list.Clear;
 //   OBJ_Face_List.clear; //clear list to start over
 
-   If OBJ_Vertex_List.Count <> 0 then
-    x := OBJ_vertex_list.Count
+   If OBJ_Vertex_list_Land.Count <> 0 then
+    x := OBJ_Vertex_list_Land.Count
    else
     x:= 0;
+
+   If OBJ_Vertex_list_Sea.Count <> 0 then
+    y := OBJ_Vertex_list_Sea.Count
+   else
+    y:= 0;
    //iterate through all patch_vertices which have a parent_id matching prim_id
-   //convert their coords from degrees to xyz?
    //store in vertex_list
-   //create faces from groups of 3 and add to face list
+   //create faces from groups of 3 and add to face list  ??
 
    //iterate through all patch_vertices which have a parent_id matching prim_id
    For aPatchVertex in Land_VertexList do
@@ -533,28 +522,49 @@ begin
      If aPatchVertex.primitive_id = prim_id then
      begin
         //store in vertex_list
-      OBJ_Vertex_list.Add(TOBJ_Vertex.Create(aPatchVertex));
+      OBJ_Vertex_list_Land.Add(TOBJ_Vertex.Create(aPatchVertex));
      end;
    end;
 
-   While x < OBJ_Vertex_list.Count do
+   For aPatchVertex in Sea_VertexList do
+   begin
+     If aPatchVertex.primitive_id = prim_id then
+     begin
+        //store in vertex_list
+      OBJ_Vertex_list_Sea.Add(TOBJ_Vertex.Create(aPatchVertex));
+     end;
+   end;
+
+   While x < OBJ_Vertex_list_land.Count do
    begin
     //create faces from groups of 3 and add to face list
-    OBJ_Face_List.Add(TOBJ_Face.create(x+3, x+2, x+1));
+    OBJ_Face_List.Add(TOBJ_Face.create(x+3, x+2, x+1, 'Land'));
     inc(x,3);
+   end;
+
+   While y < OBJ_Vertex_list_Sea.Count do
+   begin
+    //create faces from groups of 3 and add to face list
+    OBJ_Face_List.Add(TOBJ_Face.create(y+3, y+2, y+1, 'Sea'));
+    inc(y,3);
    end;
 end;
 
 procedure TForm1.TriangleStrip(prim_id: integer);
 var aPatchVertex: TPATCH_VERTEX;
-    x: integer;
+    x,y: integer;
 begin
 
 
-   If OBJ_Vertex_List.Count <> 0 then
-    x := OBJ_vertex_list.Count+1
+   If OBJ_Vertex_list_Land.Count <> 0 then
+    x := OBJ_Vertex_list_Land.Count+1
    else
     x:= 1;
+
+   If OBJ_Vertex_list_Sea.Count <> 0 then
+    y := OBJ_Vertex_list_Sea.Count+1
+   else
+    y:= 1;
    //iterate through all patch_vertices which have a parent_id matching prim_id
    //convert their coords from degrees to xyz?
    //store in vertex_list
@@ -567,7 +577,16 @@ begin
      If aPatchVertex.primitive_id = prim_id then
      begin
         //store in vertex_list
-      OBJ_Vertex_list.Add(TOBJ_Vertex.Create(aPatchVertex));
+      OBJ_Vertex_list_Land.Add(TOBJ_Vertex.Create(aPatchVertex));
+     end;
+   end;
+
+   For aPatchVertex in Sea_VertexList do
+   begin
+     If aPatchVertex.primitive_id = prim_id then
+     begin
+        //store in vertex_list
+      OBJ_Vertex_list_Sea.Add(TOBJ_Vertex.Create(aPatchVertex));
      end;
    end;
 
@@ -577,15 +596,24 @@ begin
    inc(x,2); }
 
    //every face after that uses last 2 verts of last face
-   While x < OBJ_Vertex_list.Count do
+   While x < OBJ_Vertex_list_Land.Count do
+   begin
+    If x+2 <= OBJ_Vertex_list_Land.Count then //check to make sure that we still have more verts to read
+      OBJ_Face_List.Add(TOBJ_Face.create(x+2, x+1, x, 'Land'));       //first in forward order...
+    inc(x,2);
+    If x+1 <= OBJ_Vertex_list_Land.Count then //check to make sure that we still have more verts to read
+      OBJ_Face_List.Add(TOBJ_Face.create(x+1, x-1, x, 'Land'));           //then in backward order to preserve upward facing polygons
+   end;
+
+   While y < OBJ_Vertex_list_Sea.Count do
    begin
     //first in forward order...
-    If x+2 <= OBJ_Vertex_list.Count then
-      OBJ_Face_List.Add(TOBJ_Face.create(x+2, x+1, x));
-    inc(x,2);
-    If x+1 <= OBJ_Vertex_list.Count then //check to make sure that we still have more verts to read
+    If y+2 <= OBJ_Vertex_list_Sea.Count then
+      OBJ_Face_List.Add(TOBJ_Face.create(y+2, y+1, y, 'Sea'));
+    inc(y,2);
+    If y+1 <= OBJ_Vertex_list_Sea.Count then //check to make sure that we still have more verts to read
       //then in backward order to preserve upward facing polygons
-      OBJ_Face_List.Add(TOBJ_Face.create(x+1, x-1, x));
+      OBJ_Face_List.Add(TOBJ_Face.create(y+1, y-1, y, 'Sea'));
    end;
 
 end;
@@ -596,45 +624,45 @@ var aPatchVertex: TPATCH_VERTEX;
 begin
 
 
-   If OBJ_Vertex_List.Count <> 0 then
-   begin
-    x := OBJ_vertex_list.Count+1;
-    central_vert := x;
-   end
-   else
-   begin
-    x:= 0;
-    central_vert := x+1;
-   end;
-
-   //iterate through all patch_vertices which have a parent_id matching prim_id
-   //convert their coords from degrees to xyz?
-   //store in vertex_list
-   //create faces from first group of 3
-   //every face after that uses first vert in list, last vert used, and next vert in list
-
-   //iterate through all patch_vertices which have a parent_id matching prim_id
-   For aPatchVertex in Land_VertexList do
-   begin
-     If aPatchVertex.primitive_id = prim_id then
-     begin
-        //store in vertex_list
-      OBJ_Vertex_list.Add(TOBJ_Vertex.Create(aPatchVertex));
-     end;
-   end;
-
-   //create first triangle
-   If OBJ_Vertex_list.Count >= 3 then
-    OBJ_Face_List.Add(TOBJ_Face.create(x+3, x+2, central_vert));
-   inc(x,3);
-
-   //every face after that uses last 2 verts of last face
-   While x < OBJ_Vertex_list.Count do
-   begin
-    //first in forward order...
-    OBJ_Face_List.Add(TOBJ_Face.create(x+1, x, central_vert));
-    inc(x,1);
-   end;
+//   If OBJ_Vertex_List.Count <> 0 then
+//   begin
+//    x := OBJ_vertex_list.Count+1;
+//    central_vert := x;
+//   end
+//   else
+//   begin
+//    x:= 0;
+//    central_vert := x+1;
+//   end;
+//
+//   //iterate through all patch_vertices which have a parent_id matching prim_id
+//   //convert their coords from degrees to xyz?
+//   //store in vertex_list
+//   //create faces from first group of 3
+//   //every face after that uses first vert in list, last vert used, and next vert in list
+//
+//   //iterate through all patch_vertices which have a parent_id matching prim_id
+//   For aPatchVertex in Land_VertexList do
+//   begin
+//     If aPatchVertex.primitive_id = prim_id then
+//     begin
+//        //store in vertex_list
+//      OBJ_Vertex_list.Add(TOBJ_Vertex.Create(aPatchVertex));
+//     end;
+//   end;
+//
+//   //create first triangle
+//   If OBJ_Vertex_list.Count >= 3 then
+//    OBJ_Face_List.Add(TOBJ_Face.create(x+3, x+2, central_vert));
+//   inc(x,3);
+//
+//   //every face after that uses last 2 verts of last face
+//   While x < OBJ_Vertex_list.Count do
+//   begin
+//    //first in forward order...
+//    OBJ_Face_List.Add(TOBJ_Face.create(x+1, x, central_vert));
+//    inc(x,1);
+//   end;
 
 end;
 
@@ -650,17 +678,34 @@ begin
   //header
   SL.Text := '# Alias OBJ Model File'+sLineBreak+'# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards'+SLineBreak+'# File units = meters'+sLineBreak;
 
-  //Land Group Mesh
-  SL.Add(sLineBreak+'g Mesh1 Land Model'+sLineBreak);
-  For aVertex in OBJ_Vertex_list do
+  //Sea Group Mesh
+  SL.Add(sLineBreak+'g Mesh1 Sea Model'+sLineBreak);
+  For aVertex in OBJ_Vertex_list_Sea do
   begin
     SL.Add('v '+FloatToStr(aVertex.x*100000)+' '+FloatToStr(aVertex.y*100000)+' '+{FloatToStr(aVertex.z)}'0');
   end;
 
   For aFace in OBJ_Face_List do
   begin
-    SL.Add('f '+IntToStr(aFace.v1)+' '+IntToStr(aFace.v2)+' '+IntToStr(aFace.v3));
+    If aFace.Group = 'Sea' then
+      SL.Add('f '+IntToStr(aFace.v1)+' '+IntToStr(aFace.v2)+' '+IntToStr(aFace.v3));
   end;
+
+  //Land Group Mesh
+  SL.Add(sLineBreak+'g Mesh2 Land Model'+sLineBreak);
+  For aVertex in OBJ_Vertex_list_Land do
+  begin
+    SL.Add('v '+FloatToStr(aVertex.x*100000)+' '+FloatToStr(aVertex.y*100000)+' '+{FloatToStr(aVertex.z)}'0');
+  end;
+
+  For aFace in OBJ_Face_List do
+  begin
+    If aFace.Group = 'Land' then
+    {vertex indices for faces must reference their position in the list.
+    Since we added new vertices since we completed the sea mesh all vertex indices will now be offset by the total number of sea vertices}
+      SL.Add('f '+IntToStr(aFace.v1+OBJ_Vertex_list_Sea.Count)+' '+IntToStr(aFace.v2+OBJ_Vertex_list_Sea.Count)+' '+IntToStr(aFace.v3+OBJ_Vertex_list_Sea.Count));
+  end;
+
 
   Try
     SaveName := StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]);

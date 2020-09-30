@@ -38,7 +38,7 @@ object Form1: TForm1
         Height = 21
         Enabled = False
         TabOrder = 1
-        Text = 'C:\users\CSI\desktop\+13-062_edited.txt'
+        Text = 'C:\users\CSI\desktop\+13-062.txt'
       end
       object Memo1: TMemo
         Left = 3
