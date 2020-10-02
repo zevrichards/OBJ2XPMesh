@@ -189,13 +189,13 @@ object Form1: TForm1
       object RadioGroup1: TRadioGroup
         Left = 112
         Top = 46
-        Width = 65
+        Width = 73
         Height = 50
         Caption = 'Orientation'
         ItemIndex = 0
         Items.Strings = (
-          'XYZ'
-          'XZY')
+          '+X+Y+Z'
+          '+X+Z-Y')
         TabOrder = 13
       end
     end

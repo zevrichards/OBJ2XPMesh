@@ -438,7 +438,7 @@ begin
       inc(x);
     until ContainsText(OBJ_SL.Strings[x],'v ');   //search for first vertex
 
-    If StrToFloat(trim(OBJ_SL.Strings[x].Split(Delimiters)[lon])) < 100000 then
+    If abs(StrToFloat(trim(OBJ_SL.Strings[x].Split(Delimiters)[lon]))) < 100000 then
     begin
       If MessageDlg('The orientation of this OBJ appears to be different from what was selected. Would you like to switch?', mtWarning, mbYesNo, 0) = mrYes then
       begin
@@ -458,6 +458,8 @@ begin
 
         aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]));
         aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]));
+        If lon = 3 then
+          aPatchVertex.lat := -aPatchVertex.lat;
         VertexList.Add(aPatchVertex);
       end;
       inc(x)
