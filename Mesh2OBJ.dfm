@@ -38,7 +38,7 @@ object Form1: TForm1
         Height = 21
         Enabled = False
         TabOrder = 1
-        Text = 'C:\users\CSI\desktop\+13-062.txt'
+        Text = 'C:\users\CSI\desktop\working\+13-062.txt'
       end
       object Memo1: TMemo
         Left = 3
@@ -61,7 +61,6 @@ object Form1: TForm1
       Caption = 'OBJ To DSF'
       ImageIndex = 1
       OnContextPopup = OBJ2DSFPageContextPopup
-      ExplicitLeft = 0
       object CombinedOBJEdit: TEdit
         Left = 319
         Top = 54
@@ -69,7 +68,7 @@ object Form1: TForm1
         Height = 21
         Enabled = False
         TabOrder = 0
-        Text = 'C:\users\CSI\desktop\+13-062_TVSA.obj'
+        Text = 'C:\users\CSI\desktop\working\_13-062_TVSA.obj'
       end
       object CombinedOBJButton: TButton
         Left = 208
@@ -103,7 +102,7 @@ object Form1: TForm1
         Height = 21
         Enabled = False
         TabOrder = 4
-        Text = 'C:\users\CSI\desktop\+13-062.txt'
+        Text = 'C:\users\CSI\desktop\working\+13-062.txt'
       end
       object DSF2EditButton: TButton
         Left = 3
@@ -143,6 +142,7 @@ object Form1: TForm1
         Checked = True
         State = cbChecked
         TabOrder = 8
+        Visible = False
       end
       object LandOBJButton: TButton
         Left = 208
@@ -152,6 +152,7 @@ object Form1: TForm1
         Caption = 'Load Land OBJ'
         Enabled = False
         TabOrder = 9
+        Visible = False
         OnClick = CombinedOBJButtonClick
       end
       object LandOBJEdit: TEdit
@@ -161,7 +162,8 @@ object Form1: TForm1
         Height = 21
         Enabled = False
         TabOrder = 10
-        Text = 'C:\users\CSI\desktop\+13-062_TVSA.obj'
+        Text = 'C:\users\CSI\desktop\working\+13-062_TVSA.obj'
+        Visible = False
       end
       object SeaOBJButton: TButton
         Left = 207
@@ -171,6 +173,7 @@ object Form1: TForm1
         Caption = 'Load Sea OBJ'
         Enabled = False
         TabOrder = 11
+        Visible = False
         OnClick = CombinedOBJButtonClick
       end
       object SeaOBJEdit: TEdit
@@ -180,7 +183,20 @@ object Form1: TForm1
         Height = 21
         Enabled = False
         TabOrder = 12
-        Text = 'C:\users\CSI\desktop\+13-062_TVSA.obj'
+        Text = 'C:\users\CSI\desktop\working\+13-062_TVSA.obj'
+        Visible = False
+      end
+      object RadioGroup1: TRadioGroup
+        Left = 112
+        Top = 46
+        Width = 65
+        Height = 50
+        Caption = 'Orientation'
+        ItemIndex = 0
+        Items.Strings = (
+          'XYZ'
+          'XZY')
+        TabOrder = 13
       end
     end
   end

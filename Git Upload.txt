@@ -1,0 +1,37 @@
+git pull https://github.com/zevrichards/OBJ2XPMesh
+
+(Replacing “Username” with your Username, and “directory” with your directory.)
+
+cd /c/Users/Username/directory-of-project/
+Should now show a yellow highlighted directory preceded by a tilde (~)
+
+pwd
+Verifies that the current directory is the one typed above
+
+git init
+
+git add .
+If it pops up an error message "LF will be replaced by… ", type the following: (If not, continue)
+
+git config user.email "Your email address"
+
+git config user.name "Your name"
+
+git add .
+Continuing…
+
+git commit -m 'initial commit message'
+
+git remote add origin https://github.com/YourAccountName/Project.git
+That last address is the one I mentioned to take note of earlier
+
+git push origin master
+At this point it will give you a login prompt for github. When you type the username and password the characters will be invisible, but they’re there. It confused me at first.
+
+It may give you an error. If not, great, if so, type
+
+git pull origin master
+and then when that succeeds,
+
+git push origin master
+And now you should be done. Refresh your github repository page and the code should be there.

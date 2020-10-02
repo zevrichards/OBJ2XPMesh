@@ -5,7 +5,8 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtDlgs, Vcl.StdCtrls,
-  System.StrUtils, System.generics.collections, Vcl.ComCtrls, system.Math;
+  System.StrUtils, System.generics.collections, Vcl.ComCtrls, system.Math,
+  Vcl.ExtCtrls;
 
 type
   TPATCH = class
@@ -67,6 +68,7 @@ type
     LandOBJEdit: TEdit;
     SeaOBJButton: TButton;
     SeaOBJEdit: TEdit;
+    RadioGroup1: TRadioGroup;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -97,10 +99,13 @@ type
 var
   Form1: TForm1;
   prim_count, vert_count: integer;
-  Land_VertexList, Sea_VertexList, Inserted_VertexList: TObjectList<TPATCH_VERTEX>;
+  Land_VertexList, Sea_VertexList, VertexList: TObjectList<TPATCH_VERTEX>;
   PrimitiveList: TObjectList<TPRIMITIVE>;
   OBJ_Vertex_list_Land, OBJ_Vertex_list_Sea: TObjectList<TOBJ_Vertex>;
   OBJ_Face_List: TObjectList<TOBJ_Face>;
+
+const Delimiters: array of char = [' ', #9, '/', '\'];
+
 implementation
 
 {$R *.dfm}
@@ -276,44 +281,50 @@ begin
   result.id:= vert_count;
 
 
-  value := '';
-  y := Length('PATCH_VERTEX');
+  result.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[1]));
+  result.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[2]));
+  result.height := Trunc(StrToFloat(trim(CurrentLine.Split(Delimiters)[3])));
+  result.x := StrToFloat(trim(CurrentLine.Split(Delimiters)[4]));
+  result.z := StrToFloat(trim(CurrentLine.Split(Delimiters)[5]));
 
-  repeat inc(y) until (TryStrToInt(CurrentLine[y], x)) or ((CurrentLine[y]='-'));  //find first value as there may be a lot of white space
-
-  repeat
-    value:= value + CurrentLine[y];
-    inc(y);
-  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
-  result.long:= StrToFloat(trim(value));
-
-  value := '';
-  repeat
-    value:= value + CurrentLine[y];
-    inc(y);
-  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
-  result.lat:= StrToFloat(trim(value));
-
-  value := '';
-  repeat
-    value:= value + CurrentLine[y];
-    inc(y);
-  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
-  result.height:= Trunc(StrToFloat(trim(value)));        {will this limit resolution to integer values?}
-
-  value := '';
-  repeat
-    value:= value + CurrentLine[y];
-    inc(y);
-  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
-  result.x:= StrToFloat(trim(value));
-
-  value := '';
-  repeat
-    value:= value + CurrentLine[y];
-    inc(y);
-  until (((CurrentLine[y] = ' ') or (CurrentLine[y] = #9)) or (y >= length(CurrentLine)));  //EoL
-  result.z:= StrToFloat(trim(value));
+//  value := '';
+//  y := Length('PATCH_VERTEX');
+//
+//  repeat inc(y) until (TryStrToInt(CurrentLine[y], x)) or ((CurrentLine[y]='-'));  //find first value as there may be a lot of white space
+//
+//  repeat
+//    value:= value + CurrentLine[y];
+//    inc(y);
+//  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
+//  result.long:= StrToFloat(trim(value));
+//
+//  value := '';
+//  repeat
+//    value:= value + CurrentLine[y];
+//    inc(y);
+//  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
+//  result.lat:= StrToFloat(trim(value));
+//
+//  value := '';
+//  repeat
+//    value:= value + CurrentLine[y];
+//    inc(y);
+//  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
+//  result.height:= Trunc(StrToFloat(trim(value)));        {will this limit resolution to integer values?}
+//
+//  value := '';
+//  repeat
+//    value:= value + CurrentLine[y];
+//    inc(y);
+//  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
+//  result.x:= StrToFloat(trim(value));
+//
+//  value := '';
+//  repeat
+//    value:= value + CurrentLine[y];
+//    inc(y);
+//  until (((CurrentLine[y] = ' ') or (CurrentLine[y] = #9)) or (y >= length(CurrentLine)));  //EoL
+//  result.z:= StrToFloat(trim(value));
 
   result.primitive_id := prim_count;
 
@@ -331,17 +342,17 @@ begin
 end;
 
 procedure TForm1.OBJ2DSFButtonClick(Sender: TObject);
-var DSF_SL, OBJ_SL: TStringList;
+var DSF_SL, Combined_OBJ_SL, Land_OBJ_SL, Sea_OBJ_SL: TStringList;
 
 begin
 
   try
 
     DSF_SL := TStringList.Create;
-    OBJ_SL := TStringList.Create;
+    Combined_OBJ_SL := TStringList.Create;
 
     DSF_SL.LoadFromFile(DSF2Edit.Text);
-    OBJ_SL.LoadFromFile(OBJEdit.Text);
+    Combined_OBJ_SL.LoadFromFile(CombinedOBJEdit.Text);
 
   {Load original DSF.txt
   Delete ALL instances of patches, primitives and vertices
@@ -354,11 +365,11 @@ begin
   //  OBJ_Face_List := TObjectList<TOBJ_Face>.create;
   //  ExtractPrimitives;
 //    DeletePrimitives(DSF_SL);
-    OBJ2DSF(DSF_SL, OBJ_SL);
+    OBJ2DSF(DSF_SL, Combined_OBJ_SL);
   //  Convert2Triangles;
   finally
     DSF_SL.Free;
-    OBJ_SL.Free;
+    Combined_OBJ_SL.Free;
   end;
 
 end;
@@ -378,22 +389,21 @@ end;
 //end;
 
 procedure TForm1.OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
-var x,y,z: integer;
+var x,y,z, lat,lon, v2,v3: integer;
     aPatchVertex: TPATCH_VERTEX;
-    CurrentLine, value, IDX: string;
-    IDX_List: TList<string>;
-
-const Delimiters: array of char = [' ', #9, '/', '\'];
+    CurrentLine, value, IDX, vert: string;
+    Land_Face_List, Sea_Face_List, IDX_List: TList<string>;
 
 begin
 
 
-  Inserted_Sea_VertexList := TObjectList<TPATCH_VERTEX>.create;
-  Inserted_Land_VertexList := TObjectList<TPATCH_VERTEX>.create;
+  VertexList := TObjectList<TPATCH_VERTEX>.create;
+  Land_Face_List:= TList<string>.create;
+  Sea_Face_List:= TList<string>.create;
   IDX_List := TList<string>.create;
 
   try
-    {delete all references to land and sea collision mesh in DSF.txt file}
+    {delete all references to land and sea collision meshes in DSF.txt file}
     Memo2.Lines.Add('Removing original mesh.');
     x:= DSF_SL.count-1;
     While x > 0 do
@@ -404,47 +414,55 @@ begin
     end;
 
     ////////////////COMBINED WAVEFRONT OBJ//////////////////////////
-    {Collect Sea Vertices}
+    {Collect Vertices}
     x := 0;
     lat := 1;
-    lon := 3;
+    If RadioGroup1.ItemIndex = 0 then      //This depends on whether OBJ orientation is XYZ or XZY
+      lon := 2
+    else
+      lon := 3;
+
+    If OBJ_SL.Count = 0 then
+    begin
+      MessageDlg('File is empty!', mtError, mbOkCancel, 0, mbOk);
+      exit;
+    end;
+
+    If not ((ContainsText(OBJ_SL.Text, 'v ')) and (ContainsText(OBJ_SL.Text, 'f '))) then
+    begin
+      MessageDlg('No verts or faces found in file! Is this a valid OBJ?', mtError, mbOkCancel, 0, mbOk);
+      exit;
+    end;
+
     repeat
       inc(x);
-    until ContainsText(OBJ_SL.Strings[x],'Sea'); //search for Sea Mesh Group
-    repeat
-      inc(x);
-    until ContainsText(OBJ_SL.Strings[x],'v ');   //search for first sea vertex
+    until ContainsText(OBJ_SL.Strings[x],'v ');   //search for first vertex
 
-    repeat
-      CurrentLine := OBJ_SL.Strings[x];
+    If StrToFloat(trim(OBJ_SL.Strings[x].Split(Delimiters)[lon])) < 100000 then
+    begin
+      If MessageDlg('The orientation of this OBJ appears to be different from what was selected. Would you like to switch?', mtWarning, mbYesNo, 0) = mrYes then
+      begin
+        If lon = 2 then
+          lon := 3
+        else
+          lon :=2;
+      end;
+    end;
 
-      aPatchVertex := TPATCH_VERTEX.create;
+    repeat                                           //collect all verts
+      If ContainsText(OBJ_SL.Strings[x], 'v ') then
+      begin
+        CurrentLine := OBJ_SL.Strings[x];
 
-      aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]);
-      aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]);
-      Inserted_Sea_VertexList.Add(aPatchVertex);
+        aPatchVertex := TPATCH_VERTEX.create;
+
+        aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]));
+        aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]));
+        VertexList.Add(aPatchVertex);
+      end;
       inc(x)
-    until not ContainsText(CurrentLine, 'v ');
+    until x >= OBJ_SL.count-1;    //until end of group or end of file
 
-    {Then Land Primitives}
-    x := 0;
-    repeat
-      inc(x);
-    until ContainsText(OBJ_SL.Strings[x],'Land'); //search for Land Mesh Group
-    repeat
-      inc(x);
-    until ContainsText(OBJ_SL.Strings[x],'v ');   //search for first sea vertex
-
-    repeat
-      CurrentLine := OBJ_SL.Strings[x];
-
-      aPatchVertex := TPATCH_VERTEX.create;
-
-      aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]);
-      aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]);
-      Inserted_Land_VertexList.Add(aPatchVertex);
-      inc(x)
-    until not ContainsText(CurrentLine, 'v ');
 
     ////////////////////COLLECT INDEXES IF THIS IS AN XP OBJ/////////////////
 //    repeat
@@ -459,18 +477,18 @@ begin
 
     ///////////////////COLLECT FACES IF THIS IS A WAV OBJ////////////////////
     {Check to see if file contains VTs and VNs
-    if both face vertices are located at 1 4 and 7
-    if only one they are at 1 3 and 5
-    if none they are at 1 2 and 3}
+    if both, face vertices are located at 1 4 and 7
+    if only one, they are at 1 3 and 5
+    if none, they are at 1 2 and 3}
 
-    If ((ContainsText(OBJ_SL.Text, 'vt ')) and (ContainsText(OBJ_SL.Text, 'vn ')) then
+    If ((ContainsText(OBJ_SL.Text, 'vt ')) and (ContainsText(OBJ_SL.Text, 'vn '))) then
     begin
       v2:= 4;
       v3:= 7;
     end
     else
     begin
-      If ((ContainsText(OBJ_SL.Text, 'vt ')) or (ContainsText(OBJ_SL.Text, 'vn ')) then
+      If ((ContainsText(OBJ_SL.Text, 'vt ')) or (ContainsText(OBJ_SL.Text, 'vn '))) then
       begin
         v2:= 3;
         v3:= 5;
@@ -489,14 +507,17 @@ begin
     repeat
       inc(x);
     until ContainsText(OBJ_SL.Strings[x], 'f '); //search for first face
-    repeat
-      CurrentLine := OBJ_SL.Strings[x];
-      //pick the vertex indices from the face table
-      Sea_Face_List.Add(CurrentLine.Split(Delimiters)[1]);
-      Sea_Face_List.Add(CurrentLine.Split(Delimiters)[v2]);
-      Sea_Face_List.Add(CurrentLine.Split(Delimiters)[v3]);
+    repeat                                       //collect all verts in this sea object group
+      If ContainsText(OBJ_SL.Strings[x], 'f ') then
+      begin
+        CurrentLine := OBJ_SL.Strings[x];
+        //pick the vertex indices from the face table
+        Sea_Face_List.Add(CurrentLine.Split(Delimiters)[1]);
+        Sea_Face_List.Add(CurrentLine.Split(Delimiters)[v2]);
+        Sea_Face_List.Add(CurrentLine.Split(Delimiters)[v3]);
+      end;
       inc(x);
-    until not ContainsText(CurrentLine, 'f');
+    until ((ContainsText(OBJ_SL.Strings[x], 'g ')) or (x >= OBJ_SL.count-1));    //until end of group or end of file
 
     x := 0;
     repeat
@@ -505,14 +526,17 @@ begin
     repeat
       inc(x);
     until ContainsText(OBJ_SL.Strings[x], 'f '); //search for first face
-    repeat
-      CurrentLine := OBJ_SL.Strings[x];
-      //pick the vertex indices from the face table
-      Land_Face_List.Add(CurrentLine.Split(Delimiters)[1]);
-      Land_Face_List.Add(CurrentLine.Split(Delimiters)[v2]);
-      Land_Face_List.Add(CurrentLine.Split(Delimiters)[v3]);
+    repeat                                       //collect all verts in this land object group
+      If ContainsText(OBJ_SL.Strings[x], 'f ') then
+      begin
+        CurrentLine := OBJ_SL.Strings[x];
+        //pick the vertex indices from the face table
+        Land_Face_List.Add(CurrentLine.Split(Delimiters)[1]);
+        Land_Face_List.Add(CurrentLine.Split(Delimiters)[v2]);
+        Land_Face_List.Add(CurrentLine.Split(Delimiters)[v3]);
+      end;
       inc(x);
-    until not ContainsText(CurrentLine, 'f');
+    until ((ContainsText(OBJ_SL.Strings[x], 'g ')) or (x >= OBJ_SL.count-1));    //until end of group or end of file
     /////////////////////
 
 
@@ -552,11 +576,12 @@ begin
 
         Inserted_VertexList.Add(aPatchVertex);
   //      Memo2.Lines.Add('Vertex:'+FloatToStr(aPatchVertex.lat)+' '+FloatToStr(aPatchVertex.long));
-      end; }
+      end;
 
 
-    end;
+    end;}
 
+    {Begin insertion of patches and primitives}
 
     //find insertion point for edits
     x := DSF_SL.IndexOf('RASTER_DEF bathymetry')+1;
@@ -571,9 +596,14 @@ begin
     //begin primitive
     DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
     inc(x);
-    For Face in Sea_Face_List do
+    For vert in Sea_Face_List do
     begin
-      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_Sea_VertexList[StrToInt(Face)].long/100000)+#9+FloatToStr(Inserted_Sea_VertexList[StrToInt(Face)].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+      If StrToInt(Vert) > VertexList.count then
+      begin
+        MessageDlg('Found a face vertex reference that does not exist in the Sea Vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
+        exit;
+      end;
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
       inc(x);
     end;
     DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -587,9 +617,14 @@ begin
     //begin primitive
     DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
     inc(x);
-    For Face in Land_Face_List do
+    For vert in Land_Face_List do
     begin
-      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_Land_VertexList[StrToInt(Face)].long/100000)+#9+FloatToStr(Inserted_Land_VertexList[StrToInt(Face)].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+      If StrToInt(Vert) > VertexList.count then       //total number of verts. Remember that Land vertices are offset from Sea verts by total number of sea verts
+      begin
+        MessageDlg('Found a face vertex reference that does not exist in the Land Vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
+        exit;
+      end;
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
       inc(x);
     end;
     DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -600,7 +635,7 @@ begin
 
     ///////////////////////////USE INDEXES TO PLACE VERTICES FOR XP OBJ///////////////////////
     //begin insertion of a single??? sea patch
-    DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
+    {DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
     inc(x);
     //begin primitive
     DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
@@ -613,7 +648,7 @@ begin
     DSF_SL.Insert(x,'END_PRIMITIVE');
     inc(x);
     DSF_SL.Insert(x,'END_PATCH');
-    inc(x);
+    inc(x); }
     ////////////////////////////////////////
 
 
@@ -656,13 +691,13 @@ begin
   OpenTextFileDialog1.Options := [];
   If OpenTextFileDialog1.Execute() then
   begin
-    OBJEdit.Text := OpenTextFileDialog1.FileName;
+    CombinedOBJEdit.Text := OpenTextFileDialog1.FileName;
   end;
 end;
 
 procedure TForm1.WAVOBJRadioButtonClick(Sender: TObject);
 begin
-  With self do
+  With WAVOBJRadioButton do
   begin
     If checked then
     begin
@@ -676,7 +711,7 @@ end;
 
 procedure TForm1.XPOBJRadioButtonClick(Sender: TObject);
 begin
-  With self do
+  With XPOBJRadioButton do
   begin
     If checked then
     begin
@@ -688,6 +723,8 @@ begin
     end;
   end;
 end;
+
+
 
 procedure TForm1.Triangles(prim_id: integer);
 var aPatchVertex: TPATCH_VERTEX;
