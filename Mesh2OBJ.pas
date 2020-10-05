@@ -69,6 +69,17 @@ type
     SeaOBJButton: TButton;
     SeaOBJEdit: TEdit;
     RadioGroup1: TRadioGroup;
+    DimXEdit: TEdit;
+    DimYEdit: TEdit;
+    ElevationEdit: TEdit;
+    SeaLevelEdit: TEdit;
+    Label1: TLabel;
+    Label2: TLabel;
+    Label3: TLabel;
+    Label4: TLabel;
+    ScaleEdit: TEdit;
+    Label5: TLabel;
+    Label6: TLabel;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -86,8 +97,9 @@ type
     procedure OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
     procedure XPOBJRadioButtonClick(Sender: TObject);
     procedure WAVOBJRadioButtonClick(Sender: TObject);
-    procedure OBJ2DSFPageContextPopup(Sender: TObject; MousePos: TPoint;
-      var Handled: Boolean);
+    procedure DimXEditChange(Sender: TObject);
+    procedure ElevationEditChange(Sender: TObject);
+    procedure ScaleEditExit(Sender: TObject);
   private
     { Private declarations }
   public
@@ -251,6 +263,13 @@ begin
   end;
 end;
 
+procedure TForm1.DimXEditChange(Sender: TObject);
+begin
+  DimYEdit.Text := DimXEdit.Text;
+  If StrToInt(DimXEdit.text) > 5523 then
+    MessageDlg('DSFTool experiences issues processing elevation RAW files larger than 5523x5523px (approximately 20m/px or lower). Are you sure you want to continue?', mtWarning, mbOkCancel, 0, mbOK)
+end;
+
 procedure TForm1.DSF2EditButtonClick(Sender: TObject);
 begin
   OpenTextFileDialog1.Filter := 'TXT files (*.txt)|*.TXT';
@@ -341,10 +360,28 @@ begin
 //    Memo1.Lines.Add('Adding PRIMITIVE - ID: '+IntToStr(result.id)+#9' Type: '+IntToStr(result.prim_type))
 end;
 
+
+
 procedure TForm1.OBJ2DSFButtonClick(Sender: TObject);
 var DSF_SL, Combined_OBJ_SL, Land_OBJ_SL, Sea_OBJ_SL: TStringList;
 
 begin
+
+  If DimXEdit.Text <> '' then begin
+    If ElevationEdit.Text = '' then
+    begin
+      MessageDlg('If you are entering new Raster Dimensions, please also enter a path to the elevation raster files.', mtWarning, mbOKCancel, 0, mbOk);
+      exit;
+    end;
+  end;
+
+  If ElevationEdit.Text <> '' then begin
+    If DimXEdit.Text = '' then
+    begin
+      MessageDlg('If you are entering a path to elevation raster files, please also enter new Raster Dimensions.', mtWarning, mbOKCancel, 0, mbOk);
+      exit;
+    end;
+  end;
 
   try
 
@@ -374,10 +411,11 @@ begin
 
 end;
 
-procedure TForm1.OBJ2DSFPageContextPopup(Sender: TObject; MousePos: TPoint;
-  var Handled: Boolean);
+procedure TForm1.ScaleEditExit(Sender: TObject);
+var x: extended;
 begin
-
+  If not TryStrToFloat(ScaleEdit.text, x) then
+    MessageDlg('Invalid Scale', mtWarning, mbOkCancel, 0, mbOk)
 end;
 
 //procedure TForm1.DeletePrimitives(DSF_SL: TStringList);
@@ -393,6 +431,8 @@ var x,y,z, lat,lon, v2,v3: integer;
     aPatchVertex: TPATCH_VERTEX;
     CurrentLine, value, IDX, vert: string;
     Land_Face_List, Sea_Face_List, IDX_List: TList<string>;
+    Water, Land: TObjectList<TStringList>;
+    aGroup: TStringList;
 
 begin
 
@@ -401,6 +441,8 @@ begin
   Land_Face_List:= TList<string>.create;
   Sea_Face_List:= TList<string>.create;
   IDX_List := TList<string>.create;
+  Water:= TObjectList<TStringList>.create;
+  Land:= TObjectList<TStringList>.create;
 
   try
     {delete all references to land and sea collision meshes in DSF.txt file}
@@ -418,9 +460,9 @@ begin
     x := 0;
     lat := 1;
     If RadioGroup1.ItemIndex = 0 then      //This depends on whether OBJ orientation is XYZ or XZY
-      lon := 2
+      lon := 2                             //location in the line where will be looking for the longtitude = 3rd Column.
     else
-      lon := 3;
+      lon := 3;                            //location in the line where will be looking for the longtitude = 4th Column.
 
     If OBJ_SL.Count = 0 then
     begin
@@ -443,9 +485,9 @@ begin
       If MessageDlg('The orientation of this OBJ appears to be different from what was selected. Would you like to switch?', mtWarning, mbYesNo, 0) = mrYes then
       begin
         If lon = 2 then
-          lon := 3
+          lon := 3            //change to 4th column
         else
-          lon :=2;
+          lon :=2;            //change to 3rd column
       end;
     end;
 
@@ -463,7 +505,7 @@ begin
         VertexList.Add(aPatchVertex);
       end;
       inc(x)
-    until x >= OBJ_SL.count-1;    //until end of group or end of file
+    until x >= OBJ_SL.count-1;    //until end of file
 
 
     ////////////////////COLLECT INDEXES IF THIS IS AN XP OBJ/////////////////
@@ -502,14 +544,39 @@ begin
       end;
     end;
 
-    x := 0;
+    For x := 0 to OBJ_SL.Count-1 do
+    begin
+      If ContainsText(OBJ_SL.Strings[x],'Water') then
+      begin
+        aGroup := TStringList.Create;
+        Water.add(aGroup)
+      end;
+
+      If ContainsText(OBJ_SL.Strings[x],'Land') then
+      begin
+        aGroup := TStringList.Create;
+        Land.add(aGroup)
+      end;
+
+      If ContainsText(OBJ_SL.Strings[x], 'f ') then
+      begin
+        CurrentLine := OBJ_SL.Strings[x];
+        //pick the vertex indices from the face table
+        aGroup.Add(CurrentLine.Split(Delimiters)[1]);
+        aGroup.Add(CurrentLine.Split(Delimiters)[v2]);
+        aGroup.Add(CurrentLine.Split(Delimiters)[v3]);
+      end;
+
+
+    end;
+    {x := 0;
     repeat
       inc(x);
-    until ContainsText(OBJ_SL.Strings[x],'Sea'); //search for Sea Mesh Group
+    until ContainsText(OBJ_SL.Strings[x],'Water'); //search for a Water Mesh Group
     repeat
       inc(x);
     until ContainsText(OBJ_SL.Strings[x], 'f '); //search for first face
-    repeat                                       //collect all verts in this sea object group
+    repeat                                       //collect all faces in this sea object group
       If ContainsText(OBJ_SL.Strings[x], 'f ') then
       begin
         CurrentLine := OBJ_SL.Strings[x];
@@ -538,7 +605,7 @@ begin
         Land_Face_List.Add(CurrentLine.Split(Delimiters)[v3]);
       end;
       inc(x);
-    until ((ContainsText(OBJ_SL.Strings[x], 'g ')) or (x >= OBJ_SL.count-1));    //until end of group or end of file
+    until ((ContainsText(OBJ_SL.Strings[x], 'g ')) or (x >= OBJ_SL.count-1));    //until end of group or end of file   }
     /////////////////////
 
 
@@ -592,7 +659,55 @@ begin
 
 
     ///////////////////////////USE FACE VERTEX ORDERS FOR WAVEFRONT OBJ///////////////////////
-    //begin insertion of a single??? sea patch
+    ///
+
+    For aGroup in Water do
+    begin
+      DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
+      inc(x);
+      //begin primitive
+      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+      inc(x);
+      For vert in aGroup do
+      begin
+        If StrToInt(Vert) > VertexList.count then
+        begin
+          MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
+          exit;
+        end;
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+        inc(x);
+      end;
+      DSF_SL.Insert(x,'END_PRIMITIVE');
+      inc(x);
+      DSF_SL.Insert(x,'END_PATCH');
+      inc(x);
+    end;
+
+    For aGroup in Land do
+    begin
+      DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
+      inc(x);
+      //begin primitive
+      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+      inc(x);
+      For vert in aGroup do
+      begin
+        If StrToInt(Vert) > VertexList.count then       //total number of verts. Remember that Land vertices are offset from Sea verts by total number of sea verts
+        begin
+          MessageDlg('Found a land face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
+          exit;
+        end;
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
+        inc(x);
+      end;
+      DSF_SL.Insert(x,'END_PRIMITIVE');
+      inc(x);
+      DSF_SL.Insert(x,'END_PATCH');
+      inc(x);
+    end;
+
+  {  //begin insertion of a single??? sea patch
     DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
     inc(x);
     //begin primitive
@@ -632,7 +747,7 @@ begin
     DSF_SL.Insert(x,'END_PRIMITIVE');
     inc(x);
     DSF_SL.Insert(x,'END_PATCH');
-    inc(x);
+    inc(x);  }
     ////////////////////////////////////////
 
     ///////////////////////////USE INDEXES TO PLACE VERTICES FOR XP OBJ///////////////////////
@@ -674,7 +789,15 @@ begin
     end;
    }
     //end single patch
-
+    If DimXEdit.Text <> '' then
+    begin
+      x := DSF_SL.Count-1;
+      repeat
+        dec(x)
+      until ContainsText(DSF_SL.Strings[x], 'sea_level.raw');
+      DSF_SL.Strings[x-1] := 'RASTER_DATA version=1 bpp=2 flags=5 width='+DimXEdit.text+' height='+DimYEdit.text+' scale='+ScaleEdit.text+' offset=0.000000 '+ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw';
+      DSF_SL.Strings[x] := 'RASTER_DATA version=1 bpp=2 flags=1 width=256 height=256 scale=1.000000 offset=0.000000 '+SeaLevelEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.sea_level.raw'
+    end;
 
     Memo2.Lines.Add('Saving new DSF.');
     DSF_SL.SaveToFile(StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
@@ -682,6 +805,7 @@ begin
     aPatchVertex.Free;
     IDX_List.Free;
 //    Inserted_VertexList.Free;
+    MessageBeep(MB_OK);
     Memo2.Lines.Add('Done!');
   end;
 end;
@@ -898,11 +1022,18 @@ begin
 
 end;
 
+procedure TForm1.ElevationEditChange(Sender: TObject);
+begin
+  SeaLevelEdit.Text := ElevationEdit.Text
+end;
+
 procedure TForm1.ExportOBJ;
 var SL: TStringList;
     aVertex: TOBJ_Vertex;
     aFace: TOBJ_Face;
     SaveName: string;
+    x: integer;
+
 begin
   Memo1.Lines.Add('Starting OBJ Export!');
 
@@ -951,10 +1082,12 @@ begin
       end;
     end;
     SL.SaveToFile(SaveName);
+    MessageBeep(MB_OK);
+    Memo1.Lines.Add('OBJ Export Succesful!');
   Finally
     SL.Free;
   End;
-  Memo1.Lines.Add('OBJ Export Succesful!');
+
 end;
 
 end.

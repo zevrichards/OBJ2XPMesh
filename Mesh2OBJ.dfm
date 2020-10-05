@@ -13,6 +13,13 @@ object Form1: TForm1
   OldCreateOrder = False
   PixelsPerInch = 96
   TextHeight = 13
+  object Label5: TLabel
+    Left = 15
+    Top = 224
+    Width = 68
+    Height = 13
+    Caption = 'Raster Length'
+  end
   object PageControl1: TPageControl
     Left = 8
     Top = 8
@@ -60,7 +67,41 @@ object Form1: TForm1
     object OBJ2DSFPage: TTabSheet
       Caption = 'OBJ To DSF'
       ImageIndex = 1
-      OnContextPopup = OBJ2DSFPageContextPopup
+      object Label1: TLabel
+        Left = 3
+        Top = 145
+        Width = 63
+        Height = 13
+        Caption = 'Raster Width'
+      end
+      object Label2: TLabel
+        Left = 3
+        Top = 169
+        Width = 68
+        Height = 13
+        Caption = 'Raster Length'
+      end
+      object Label3: TLabel
+        Left = 224
+        Top = 146
+        Width = 117
+        Height = 13
+        Caption = 'Path to Elevation Raster'
+      end
+      object Label4: TLabel
+        Left = 222
+        Top = 169
+        Width = 119
+        Height = 13
+        Caption = 'Path to Sea Level Raster'
+      end
+      object Label6: TLabel
+        Left = 3
+        Top = 195
+        Width = 25
+        Height = 13
+        Caption = 'Scale'
+      end
       object CombinedOBJEdit: TEdit
         Left = 319
         Top = 54
@@ -81,9 +122,9 @@ object Form1: TForm1
       end
       object Memo2: TMemo
         Left = 3
-        Top = 168
+        Top = 216
         Width = 828
-        Height = 165
+        Height = 117
         TabOrder = 2
       end
       object OBJ2DSFButton: TButton
@@ -131,6 +172,7 @@ object Form1: TForm1
         Height = 17
         Caption = 'X-Plane OBJ'
         TabOrder = 7
+        Visible = False
         OnClick = XPOBJRadioButtonClick
       end
       object CombinedOBJCheckBox: TCheckBox
@@ -197,6 +239,51 @@ object Form1: TForm1
           '+X+Y+Z'
           '+X+Z-Y')
         TabOrder = 13
+      end
+      object DimXEdit: TEdit
+        Left = 83
+        Top = 143
+        Width = 121
+        Height = 21
+        NumbersOnly = True
+        TabOrder = 14
+        Text = '5523'
+        OnChange = DimXEditChange
+      end
+      object DimYEdit: TEdit
+        Left = 83
+        Top = 165
+        Width = 121
+        Height = 21
+        NumbersOnly = True
+        TabOrder = 15
+        Text = '5523'
+      end
+      object ElevationEdit: TEdit
+        Left = 347
+        Top = 142
+        Width = 483
+        Height = 21
+        TabOrder = 16
+        Text = 'C:\Users\CSI\Desktop\working'
+        OnChange = ElevationEditChange
+      end
+      object SeaLevelEdit: TEdit
+        Left = 347
+        Top = 165
+        Width = 483
+        Height = 21
+        TabOrder = 17
+        Text = 'C:\Users\CSI\Desktop\working'
+      end
+      object ScaleEdit: TEdit
+        Left = 83
+        Top = 192
+        Width = 121
+        Height = 21
+        TabOrder = 18
+        Text = '1.000000'
+        OnExit = ScaleEditExit
       end
     end
   end
