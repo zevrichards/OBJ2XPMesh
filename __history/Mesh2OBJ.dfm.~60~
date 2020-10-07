@@ -26,10 +26,14 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = DSFToolTabSheet
+    ActivePage = OBJ2DSFPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object DSFButton: TButton
         Left = 3
         Top = 18
@@ -327,6 +331,7 @@ object Form1: TForm1
         Height = 25
         Caption = 'Load .TXT'
         TabOrder = 2
+        OnClick = TXTButtonClick
       end
       object DSFButton2: TButton
         Left = 16
@@ -335,6 +340,7 @@ object Form1: TForm1
         Height = 25
         Caption = 'Load .DSF'
         TabOrder = 3
+        OnClick = DSFButton2Click
       end
       object DSFEdit2: TEdit
         Left = 144
@@ -342,6 +348,7 @@ object Form1: TForm1
         Width = 670
         Height = 21
         TabOrder = 4
+        OnChange = DSFEdit2Change
       end
       object TXTEdit: TEdit
         Left = 144
@@ -349,6 +356,7 @@ object Form1: TForm1
         Width = 670
         Height = 21
         TabOrder = 5
+        OnChange = TXTEditChange
       end
       object OutputDirEdit: TEdit
         Left = 144
@@ -356,6 +364,7 @@ object Form1: TForm1
         Width = 670
         Height = 21
         TabOrder = 6
+        OnExit = OutputDirEditExit
       end
       object OutputNameEdit: TEdit
         Left = 144
@@ -379,6 +388,14 @@ object Form1: TForm1
         Width = 670
         Height = 21
         TabOrder = 9
+      end
+      object RunDSFToolCheckBox: TCheckBox
+        Left = 8
+        Top = 328
+        Width = 185
+        Height = 17
+        Caption = 'Run DSFTool on Drag and Drop'
+        TabOrder = 10
       end
     end
   end

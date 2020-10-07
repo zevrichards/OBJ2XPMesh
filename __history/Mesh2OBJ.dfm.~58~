@@ -290,25 +290,26 @@ object Form1: TForm1
     object DSFToolTabSheet: TTabSheet
       Caption = 'DSF Tool'
       ImageIndex = 2
+      ExplicitLeft = 0
       object Label7: TLabel
         Left = 40
-        Top = 80
+        Top = 116
         Width = 81
         Height = 13
         Caption = 'Output Directory'
       end
       object Label8: TLabel
         Left = 57
-        Top = 106
+        Top = 142
         Width = 64
         Height = 13
         Caption = 'Output Name'
       end
       object Memo3: TMemo
         Left = 3
-        Top = 136
+        Top = 168
         Width = 827
-        Height = 178
+        Height = 146
         TabOrder = 0
       end
       object DSFToolButton: TButton
@@ -322,58 +323,76 @@ object Form1: TForm1
       end
       object TXTButton: TButton
         Left = 16
-        Top = 20
+        Top = 56
         Width = 105
         Height = 25
         Caption = 'Load .TXT'
         TabOrder = 2
-        OnClick = CombinedOBJButtonClick
+        OnClick = TXTButtonClick
       end
       object DSFButton2: TButton
         Left = 16
-        Top = 49
+        Top = 85
         Width = 105
         Height = 25
         Caption = 'Load .DSF'
-        Enabled = False
         TabOrder = 3
-        Visible = False
-        OnClick = CombinedOBJButtonClick
+        OnClick = DSFButton2Click
       end
       object DSFEdit2: TEdit
         Left = 144
-        Top = 49
+        Top = 85
         Width = 670
         Height = 21
-        Enabled = False
         TabOrder = 4
-        Visible = False
+        OnChange = DSFEdit2Change
       end
       object TXTEdit: TEdit
         Left = 144
-        Top = 22
+        Top = 58
         Width = 670
         Height = 21
-        Enabled = False
         TabOrder = 5
+        OnChange = TXTEditChange
       end
       object OutputDirEdit: TEdit
         Left = 144
-        Top = 76
+        Top = 112
         Width = 670
         Height = 21
-        Enabled = False
         TabOrder = 6
-        Visible = False
+        OnExit = OutputDirEditExit
       end
       object OutputNameEdit: TEdit
         Left = 144
-        Top = 103
+        Top = 139
         Width = 670
         Height = 21
-        Enabled = False
         TabOrder = 7
-        Visible = False
+      end
+      object FindDSFToolButton: TButton
+        Left = 16
+        Top = 25
+        Width = 105
+        Height = 25
+        Caption = 'Find DSFTool'
+        TabOrder = 8
+        OnClick = FindDSFToolButtonClick
+      end
+      object DSFToolPathEdit: TEdit
+        Left = 144
+        Top = 31
+        Width = 670
+        Height = 21
+        TabOrder = 9
+      end
+      object RunDSFToolCheckBox: TCheckBox
+        Left = 8
+        Top = 328
+        Width = 185
+        Height = 17
+        Caption = 'Run DSFTool on Drag and Drop'
+        TabOrder = 10
       end
     end
   end

@@ -26,7 +26,7 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = DSFToolTabSheet
+    ActivePage = DSF2OBJPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
@@ -50,19 +50,30 @@ object Form1: TForm1
       end
       object Memo1: TMemo
         Left = 3
-        Top = 67
+        Top = 96
         Width = 828
-        Height = 262
+        Height = 233
+        ScrollBars = ssVertical
         TabOrder = 2
       end
       object Convert2OBJButton: TButton
-        Left = 368
+        Left = 355
         Top = 339
         Width = 121
         Height = 25
         Caption = 'Convert DSF to OBJ'
         TabOrder = 3
         OnClick = Convert2OBJButtonClick
+      end
+      object ElevationCheckBox: TCheckBox
+        Left = 84
+        Top = 47
+        Width = 153
+        Height = 17
+        Caption = 'Burn Elevations into OBJ'
+        Checked = True
+        State = cbChecked
+        TabOrder = 4
       end
     end
     object OBJ2DSFPage: TTabSheet
@@ -129,7 +140,7 @@ object Form1: TForm1
         TabOrder = 2
       end
       object OBJ2DSFButton: TButton
-        Left = 368
+        Left = 355
         Top = 339
         Width = 121
         Height = 25
@@ -290,7 +301,6 @@ object Form1: TForm1
     object DSFToolTabSheet: TTabSheet
       Caption = 'DSF Tool'
       ImageIndex = 2
-      ExplicitLeft = 0
       object Label7: TLabel
         Left = 40
         Top = 116

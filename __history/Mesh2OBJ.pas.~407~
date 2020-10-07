@@ -44,6 +44,12 @@ type TOBJ_Face = Class
   constructor Create(v1,v2,v3: integer; group: string);
 End;
 
+type TSection = class
+    labelname: string;
+    size: integer;
+    data: Tbytes;
+end;
+
 type
   TForm1 = class(TForm)
     OpenTextFileDialog1: TOpenTextFileDialog;
@@ -93,6 +99,8 @@ type
     Label8: TLabel;
     FindDSFToolButton: TButton;
     DSFToolPathEdit: TEdit;
+    RunDSFToolCheckBox: TCheckBox;
+    ElevationCheckBox: TCheckBox;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -117,6 +125,12 @@ type
     procedure FormCreate(Sender: TObject);
     procedure Drag_Drop_File(var Msg: TMessage); message WM_DROPFILES;
     procedure FindDSFToolButtonClick(Sender: TObject);
+    procedure TXTEditChange(Sender: TObject);
+    procedure DSFEdit2Change(Sender: TObject);
+    procedure TXTButtonClick(Sender: TObject);
+    procedure DSFButton2Click(Sender: TObject);
+    procedure OutputDirEditExit(Sender: TObject);
+    procedure BurnElevations;
   private
     { Private declarations }
   public
@@ -132,6 +146,7 @@ var
   PrimitiveList: TObjectList<TPRIMITIVE>;
   OBJ_Vertex_list_Land, OBJ_Vertex_list_Sea: TObjectList<TOBJ_Vertex>;
   OBJ_Face_List: TObjectList<TOBJ_Face>;
+  Extents: array [1..4] of real; //N,S,W,E
 
 const Delimiters: array of char = [' ', #9, '/', '\'];
 
@@ -178,7 +193,7 @@ var SL: TStringList;
 
     CurrentLine, value: string;
 begin
-  Memo1.Lines.Add('Starting Extraction of Primitives!');
+  Memo1.Lines.Add('Starting Extraction of Primitives...');
 
   prim_count := 0;
   vert_count := 0;
@@ -235,9 +250,76 @@ begin
 
   finally
     SL.Free;
-    Memo1.Lines.Add('Done Extracting Primitives!');
+    Memo1.Lines.Add('Done Extracting Primitives.');
   end;
 end;
+
+procedure TForm1.BurnElevations;
+var FS: TFileStream;
+    S: string;
+    aSection: TSection;
+    r,c,b: smallint;
+    data: Tbytes;
+    i, idx, datalength, InsertPosition, InsertLength: integer;
+    total_rows, row, column: integer;
+    aVertex: TOBJ_VERTEX;
+    RAW_array: array of array of integer;
+begin
+
+  {Load Elevation RAW File
+  Find number of rows and columns
+  Determine extents of OBJ
+  Read RAW file into 2D array
+  For every vertex in vertex list
+    Find XY position as fraction of extents, convert to 2D array position
+    Determine row and column position based on fraction of total rows/columns
+    Read height integer from RAW file array
+    Change height in vertex             }
+
+  S := DSFTXTEdit.text+'.elevation.raw';
+
+  FS:= TFileStream.Create(S, fmopenread + fmShareDenyNone{ or fmShareDenyWrite});
+  total_rows := trunc(sqrt(FS.Size/8)*2);  //total_rows=total_columns
+
+  try
+    FS.Position:=0;
+    SetLength(RAW_Array, total_rows, total_rows);
+
+    For r := 0 to total_rows-1 do
+    begin
+      For c := 0 to total_rows-1 do
+      begin
+        FS.Seek(r*c, soFromCurrent);
+        FS.Read(b, 2);
+        b := Swap(b);
+        RAW_Array[r,c] := b;
+      end;
+    end;
+
+  finally
+    FS.Free;
+  end;
+
+  Memo1.Lines.add('North: '+FloatToStr(Extents[1])+' South: '+FloatToStr(Extents[2])+' West: '+FloatToStr(Extents[3])+' East: '+FloatToStr(Extents[4]));
+  b := 0;
+  For aVertex in  OBJ_Vertex_list_Land do
+  begin
+//    Find XY position as fraction of extents
+//    Determine row and column position based on fraction of total rows/columns
+
+    //X and Y below may have been incorrectly exchanged
+    row := trunc(((Extents[1]-(aVertex.Y))/(Extents[1]-Extents[2]))*total_rows);      //(N - vertex_lat)/(N-S) * total_rows
+    column := trunc(((Extents[3]-(aVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
+
+    aVertex.z := RAW_array[row-1, column-1];
+
+    If aVertex.z > 0 then
+      Memo1.Lines.add('X: '+IntToStr(Trunc(Row))+#9+'Y: '+IntToStr(Trunc(Column))+#9+'Lat: '+FloatToStr(aVertex.y)+#9+'Long: '+FloatToStr(aVertex.x)+#9+'Height: '+FloatToStr(b));
+  end;
+
+
+end;
+
 
 procedure TForm1.FindDSFToolButtonClick(Sender: TObject);
 begin
@@ -281,12 +363,23 @@ end;
 
 procedure TForm1.Convert2OBJButtonClick(Sender: TObject);
 begin
+  //N
+  Extents[1]:= -999*100000;
+  //S
+  Extents[2]:= 999*100000;
+  //W
+  Extents[3]:= -999*100000;
+  //E
+  Extents[4]:= 999*100000;
+
   try
     OBJ_Vertex_list_Land := TObjectList<TOBJ_Vertex>.create;
     OBJ_Vertex_list_Sea := TObjectList<TOBJ_Vertex>.create;
     OBJ_Face_List := TObjectList<TOBJ_Face>.create;
     ExtractPrimitives;
     Convert2Triangles;
+    If ElevationCheckBox.Checked then
+      BurnElevations;
     ExportOBJ;
   finally
     OBJ_Vertex_list_Land.Free;
@@ -312,6 +405,19 @@ begin
   end;
 end;
 
+procedure TForm1.DSFButton2Click(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'DSF Files (*.dsf)|*.DSF';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    DSFEdit2.Text := OpenTextFileDialog1.FileName;
+    TXTEdit.text := '';
+    OutputDirEdit.text := ExtractFilePath(DSFEdit2.Text);
+    OutputNameEdit.Text := ChangeFileExt(ExtractFileName(DSFEdit2.Text), '')+'.dsf';
+  end;
+end;
+
 procedure TForm1.DSFButtonClick(Sender: TObject);
 begin
   OpenTextFileDialog1.Filter := 'TXT files (*.txt)|*.TXT';
@@ -322,13 +428,18 @@ begin
   end;
 end;
 
+procedure TForm1.DSFEdit2Change(Sender: TObject);
+begin
+  TXTEdit.text := '';
+end;
+
 procedure TForm1.DSFToolButtonClick(Sender: TObject);
 var log: string;
 begin
-  If then
-    RunProgramWaiting('E:\Program Files\X-Plane 11\xptools_win_15-3\tools\DSFTool.exe', '', ['-text2dsf','"'++'"','"'++'f"'], log);
-  else
-    RunProgramWaiting('E:\Program Files\X-Plane 11\xptools_win_15-3\tools\DSFTool.exe', '', ['-dsf2text','"'++'"','"'++'"'], log);
+  If TXTEdit.Text <> '' then
+    RunProgramWaiting('E:\Program Files\X-Plane 11\xptools_win_15-3\tools\DSFTool.exe', '', ['-text2dsf','"'+TXTEdit.text+'"','"'+OutputDirEdit.Text+OutputNameEdit.text+'"'], log);
+  If DSFEdit2.text <> '' then
+    RunProgramWaiting('E:\Program Files\X-Plane 11\xptools_win_15-3\tools\DSFTool.exe', '', ['-dsf2text','"'+DSFEdit2.text+'"','"'+OutputDirEdit.Text+OutputNameEdit.text+'"'], log);
   Memo1.Lines.Add(log);
 end;
 
@@ -388,6 +499,19 @@ begin
 //  result.z:= StrToFloat(trim(value));
 
   result.primitive_id := prim_count;
+
+  //northern most vertex
+  If result.lat > Extents[1] then
+    Extents[1] := result.lat;
+  //southern most vertex
+  If result.lat < Extents[2] then
+    Extents[2] := result.lat;
+  //western most vertex
+  If result.long > Extents[3] then
+    Extents[3] := result.long;
+  //eastern most vertex
+  If result.long < Extents[4] then
+    Extents[4] := result.long;
 
 //  Memo1.Lines.Add('Adding VERTEX - ID: '+IntToStr(result.id)+#9' Long: '+FloatToStr(result.long)+#9' Lat: '+FloatToStr(result.lat)+#9#9' Height: '+IntToStr(result.height)+#9' X: '+FloatToStr(result.x)+#9' Z: '+FloatToStr(result.z)+#9' Parent: '+IntToStr(result.primitive_id))
 end;
@@ -451,6 +575,15 @@ begin
     Combined_OBJ_SL.Free;
   end;
 
+end;
+
+procedure TForm1.OutputDirEditExit(Sender: TObject);
+begin
+  With OutputDirEdit do
+  begin
+    If text[high(text)] <> '\' then
+     text := text + '\';
+  end;
 end;
 
 procedure TForm1.ScaleEditExit(Sender: TObject);
@@ -708,48 +841,23 @@ begin
     DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
     inc(x);}
 
-    For aGroup in Water do
-    begin
-      DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
-      inc(x);
-      //begin primitive
-      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
-      inc(x);
-//      For vert in aGroup do
-      For v := aGroup.count-1 downto 0 do
-      begin
-        Vert:= aGroup[v];
-        If StrToInt(Vert) > VertexList.count then
-        begin
-          MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
-          exit;
-        end;
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
-        inc(x);
-      end;
-      DSF_SL.Insert(x,'END_PRIMITIVE');
-      inc(x);
-      DSF_SL.Insert(x,'END_PATCH');
-      inc(x);
-    end;
-
-//    For aGroup in Land do
+//    For aGroup in Water do
 //    begin
-//      DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
+//      DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
 //      inc(x);
 //      //begin primitive
 //      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
 //      inc(x);
 ////      For vert in aGroup do
-//      For v := 0 to aGroup.count-1 do
+//      For v := aGroup.count-1 downto 0 do
 //      begin
 //        Vert:= aGroup[v];
-//        If StrToInt(Vert) > VertexList.count then       //total number of verts. Remember that Land vertices are offset from Sea verts by total number of sea verts
+//        If StrToInt(Vert) > VertexList.count then
 //        begin
-//          MessageDlg('Found a land face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
+//          MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
 //          exit;
 //        end;
-//        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
+//        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
 //        inc(x);
 //      end;
 //      DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -757,6 +865,31 @@ begin
 //      DSF_SL.Insert(x,'END_PATCH');
 //      inc(x);
 //    end;
+
+    For aGroup in Land do
+    begin
+      DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
+      inc(x);
+      //begin primitive
+      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+      inc(x);
+//      For vert in aGroup do
+      For v := 0 to aGroup.count-1 do
+      begin
+        Vert:= aGroup[v];
+        If StrToInt(Vert) > VertexList.count then       //total number of verts. Remember that Land vertices are offset from Sea verts by total number of sea verts
+        begin
+          MessageDlg('Found a land face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
+          exit;
+        end;
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
+        inc(x);
+      end;
+      DSF_SL.Insert(x,'END_PRIMITIVE');
+      inc(x);
+      DSF_SL.Insert(x,'END_PATCH');
+      inc(x);
+    end;
 
     {DSF_SL.Insert(x,'END_PRIMITIVE');
     inc(x);
@@ -1030,6 +1163,24 @@ begin
 
 end;
 
+procedure TForm1.TXTButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'TXT Files (*.txt)|*.TXT';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    TXTEdit.Text := OpenTextFileDialog1.FileName;
+    DSFEdit2.text := '';
+    OutputDirEdit.text := ExtractFilePath(TXTEdit.Text);
+    OutputNameEdit.Text := ChangeFileExt(ExtractFileName(TXTEdit.Text), '')+'.dsf';
+  end;
+end;
+
+procedure TForm1.TXTEditChange(Sender: TObject);
+begin
+  DSFEdit2.text := '';
+end;
+
 procedure TForm1.TriangleFan(prim_id: integer);
 var aPatchVertex: TPATCH_VERTEX;
     central_vert, x: integer;
@@ -1078,6 +1229,8 @@ begin
 
 end;
 
+
+
 procedure TForm1.ElevationEditChange(Sender: TObject);
 begin
   SeaLevelEdit.Text := ElevationEdit.Text
@@ -1101,7 +1254,9 @@ begin
   SL.Add(sLineBreak+'g Mesh1 Sea Model'+sLineBreak);
   For aVertex in OBJ_Vertex_list_Sea do
   begin
-    SL.Add('v '+FloatToStr(aVertex.x*100000)+' '+FloatToStr(aVertex.y*100000)+' '+{FloatToStr(aVertex.z)}'0');
+    If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
+      aVertex.z := 0;
+    SL.Add('v '+FloatToStr(aVertex.x*100000)+' '+FloatToStr(aVertex.y*100000)+' '+FloatToStr(aVertex.z){'0'});
   end;
 
   For aFace in OBJ_Face_List do
@@ -1114,7 +1269,9 @@ begin
   SL.Add(sLineBreak+'g Mesh2 Land Model'+sLineBreak);
   For aVertex in OBJ_Vertex_list_Land do
   begin
-    SL.Add('v '+FloatToStr(aVertex.x*100000)+' '+FloatToStr(aVertex.y*100000)+' '+{FloatToStr(aVertex.z)}'0');
+    If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
+      aVertex.z := 0;
+    SL.Add('v '+FloatToStr(aVertex.x*100000)+' '+FloatToStr(aVertex.y*100000)+' '+FloatToStr(aVertex.z){'0'});
   end;
 
   For aFace in OBJ_Face_List do
@@ -1127,7 +1284,9 @@ begin
 
 
   Try
+
     SaveName := StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]);
+    MessageBeep(MB_OK);
     If FileExists(SaveName) then
     begin
       SaveDialog1.Filter := 'OBJ files (*.obj)|*.OBJ';
@@ -1138,7 +1297,7 @@ begin
       end;
     end;
     SL.SaveToFile(SaveName);
-    MessageBeep(MB_OK);
+
     Memo1.Lines.Add('OBJ Export Succesful!');
   Finally
     SL.Free;
@@ -1195,7 +1354,8 @@ begin
   DragFinish(Msg.WParam);
   // This frees the resources used to store information about the drop.
 
-//  DSFToolButton.Click;
+  If RunDSFToolCheckBox.Checked then
+    DSFToolButton.Click;
 end;
 
 end.
