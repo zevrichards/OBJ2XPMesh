@@ -25,10 +25,14 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = OBJ2DSFPage
+    ActivePage = DSFToolTabSheet
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object DSFButton: TButton
         Left = 3
         Top = 18
@@ -67,6 +71,10 @@ object Form1: TForm1
     object OBJ2DSFPage: TTabSheet
       Caption = 'OBJ To DSF'
       ImageIndex = 1
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object Label1: TLabel
         Left = 3
         Top = 145
@@ -172,6 +180,7 @@ object Form1: TForm1
         Height = 17
         Caption = 'X-Plane OBJ'
         TabOrder = 7
+        Visible = False
         OnClick = XPOBJRadioButtonClick
       end
       object CombinedOBJCheckBox: TCheckBox
@@ -233,7 +242,7 @@ object Form1: TForm1
         Width = 73
         Height = 50
         Caption = 'Orientation'
-        ItemIndex = 0
+        ItemIndex = 1
         Items.Strings = (
           '+X+Y+Z'
           '+X+Z-Y')
@@ -246,7 +255,7 @@ object Form1: TForm1
         Height = 21
         NumbersOnly = True
         TabOrder = 14
-        Text = '11064'
+        Text = '5523'
         OnChange = DimXEditChange
       end
       object DimYEdit: TEdit
@@ -256,7 +265,7 @@ object Form1: TForm1
         Height = 21
         NumbersOnly = True
         TabOrder = 15
-        Text = '11064'
+        Text = '5523'
       end
       object ElevationEdit: TEdit
         Left = 347
@@ -275,16 +284,36 @@ object Form1: TForm1
         TabOrder = 17
         Text = 'C:\Users\CSI\Desktop\working'
       end
+      object ScaleEdit: TEdit
+        Left = 83
+        Top = 192
+        Width = 121
+        Height = 21
+        TabOrder = 18
+        Text = '1.000000'
+        OnExit = ScaleEditExit
+      end
     end
-  end
-  object ScaleEdit: TEdit
-    Left = 95
-    Top = 221
-    Width = 121
-    Height = 21
-    TabOrder = 1
-    Text = '1.000000'
-    OnExit = ScaleEditExit
+    object DSFToolTabSheet: TTabSheet
+      Caption = 'DSF Tool'
+      ImageIndex = 2
+      object Memo3: TMemo
+        Left = 3
+        Top = 136
+        Width = 827
+        Height = 188
+        TabOrder = 0
+      end
+      object DSFToolButton: TButton
+        Left = 368
+        Top = 330
+        Width = 75
+        Height = 25
+        Caption = 'Run DSF Tool'
+        TabOrder = 1
+        OnClick = DSFToolButtonClick
+      end
+    end
   end
   object OpenTextFileDialog1: TOpenTextFileDialog
     Left = 816

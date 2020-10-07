@@ -234,7 +234,7 @@ object Form1: TForm1
         Width = 73
         Height = 50
         Caption = 'Orientation'
-        ItemIndex = 0
+        ItemIndex = 1
         Items.Strings = (
           '+X+Y+Z'
           '+X+Z-Y')
@@ -247,7 +247,7 @@ object Form1: TForm1
         Height = 21
         NumbersOnly = True
         TabOrder = 14
-        Text = '11064'
+        Text = '5523'
         OnChange = DimXEditChange
       end
       object DimYEdit: TEdit
@@ -257,7 +257,7 @@ object Form1: TForm1
         Height = 21
         NumbersOnly = True
         TabOrder = 15
-        Text = '11064'
+        Text = '5523'
       end
       object ElevationEdit: TEdit
         Left = 347

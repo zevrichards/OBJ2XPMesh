@@ -6,7 +6,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtDlgs, Vcl.StdCtrls,
   System.StrUtils, System.generics.collections, Vcl.ComCtrls, system.Math,
-  Vcl.ExtCtrls;
+  Vcl.ExtCtrls, Launch, WinApi.ShellApi;
 
 type
   TPATCH = class
@@ -80,6 +80,20 @@ type
     ScaleEdit: TEdit;
     Label5: TLabel;
     Label6: TLabel;
+    DSFToolTabSheet: TTabSheet;
+    Memo3: TMemo;
+    DSFToolButton: TButton;
+    TXTButton: TButton;
+    DSFButton2: TButton;
+    DSFEdit2: TEdit;
+    TXTEdit: TEdit;
+    OutputDirEdit: TEdit;
+    Label7: TLabel;
+    OutputNameEdit: TEdit;
+    Label8: TLabel;
+    FindDSFToolButton: TButton;
+    DSFToolPathEdit: TEdit;
+    RunDSFToolCheckBox: TCheckBox;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -100,6 +114,15 @@ type
     procedure DimXEditChange(Sender: TObject);
     procedure ElevationEditChange(Sender: TObject);
     procedure ScaleEditExit(Sender: TObject);
+    procedure DSFToolButtonClick(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+    procedure Drag_Drop_File(var Msg: TMessage); message WM_DROPFILES;
+    procedure FindDSFToolButtonClick(Sender: TObject);
+    procedure TXTEditChange(Sender: TObject);
+    procedure DSFEdit2Change(Sender: TObject);
+    procedure TXTButtonClick(Sender: TObject);
+    procedure DSFButton2Click(Sender: TObject);
+    procedure OutputDirEditExit(Sender: TObject);
   private
     { Private declarations }
   public
@@ -222,6 +245,21 @@ begin
   end;
 end;
 
+procedure TForm1.FindDSFToolButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'DSFTool.exe (DSFTool.exe)|DSFTool.exe';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    DSFToolPathEdit.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
+
+procedure TForm1.FormCreate(Sender: TObject);
+begin
+  DragAcceptFiles(Handle, True);
+end;
+
 //we will be ignoring the types of primitives for now
 //convert all Primitives into mesh triangles
 procedure TForm1.Convert2Triangles;
@@ -280,6 +318,19 @@ begin
   end;
 end;
 
+procedure TForm1.DSFButton2Click(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'DSF Files (*.dsf)|*.DSF';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    DSFEdit2.Text := OpenTextFileDialog1.FileName;
+    TXTEdit.text := '';
+    OutputDirEdit.text := ExtractFilePath(DSFEdit2.Text);
+    OutputNameEdit.Text := ChangeFileExt(ExtractFileName(DSFEdit2.Text), '')+'.dsf';
+  end;
+end;
+
 procedure TForm1.DSFButtonClick(Sender: TObject);
 begin
   OpenTextFileDialog1.Filter := 'TXT files (*.txt)|*.TXT';
@@ -288,6 +339,21 @@ begin
   begin
     DSFTXTEdit.Text := OpenTextFileDialog1.FileName;
   end;
+end;
+
+procedure TForm1.DSFEdit2Change(Sender: TObject);
+begin
+  TXTEdit.text := '';
+end;
+
+procedure TForm1.DSFToolButtonClick(Sender: TObject);
+var log: string;
+begin
+  If TXTEdit.Text <> '' then
+    RunProgramWaiting('E:\Program Files\X-Plane 11\xptools_win_15-3\tools\DSFTool.exe', '', ['-text2dsf','"'+TXTEdit.text+'"','"'+OutputDirEdit.Text+OutputNameEdit.text+'"'], log);
+  If DSFEdit2.text <> '' then
+    RunProgramWaiting('E:\Program Files\X-Plane 11\xptools_win_15-3\tools\DSFTool.exe', '', ['-dsf2text','"'+DSFEdit2.text+'"','"'+OutputDirEdit.Text+OutputNameEdit.text+'"'], log);
+  Memo1.Lines.Add(log);
 end;
 
 function TForm1.Get_PatchVertex(CurrentLine: string): TPATCH_VERTEX;
@@ -411,6 +477,15 @@ begin
 
 end;
 
+procedure TForm1.OutputDirEditExit(Sender: TObject);
+begin
+  With OutputDirEdit do
+  begin
+    If text[high(text)] <> '\' then
+     text := text + '\';
+  end;
+end;
+
 procedure TForm1.ScaleEditExit(Sender: TObject);
 var x: extended;
 begin
@@ -427,7 +502,7 @@ end;
 //end;
 
 procedure TForm1.OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
-var x,y,z, lat,lon, v2,v3: integer;
+var v,x,y,z, lat,lon, v2,v3: integer;
     aPatchVertex: TPATCH_VERTEX;
     CurrentLine, value, IDX, vert: string;
     Land_Face_List, Sea_Face_List, IDX_List: TList<string>;
@@ -660,6 +735,11 @@ begin
 
     ///////////////////////////USE FACE VERTEX ORDERS FOR WAVEFRONT OBJ///////////////////////
     ///
+    {DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
+    inc(x);
+    //begin primitive
+    DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+    inc(x);}
 
     For aGroup in Water do
     begin
@@ -668,8 +748,10 @@ begin
       //begin primitive
       DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
       inc(x);
-      For vert in aGroup do
+//      For vert in aGroup do
+      For v := aGroup.count-1 downto 0 do
       begin
+        Vert:= aGroup[v];
         If StrToInt(Vert) > VertexList.count then
         begin
           MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
@@ -684,28 +766,35 @@ begin
       inc(x);
     end;
 
-    For aGroup in Land do
-    begin
-      DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
-      inc(x);
-      //begin primitive
-      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
-      inc(x);
-      For vert in aGroup do
-      begin
-        If StrToInt(Vert) > VertexList.count then       //total number of verts. Remember that Land vertices are offset from Sea verts by total number of sea verts
-        begin
-          MessageDlg('Found a land face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
-          exit;
-        end;
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
-        inc(x);
-      end;
-      DSF_SL.Insert(x,'END_PRIMITIVE');
-      inc(x);
-      DSF_SL.Insert(x,'END_PATCH');
-      inc(x);
-    end;
+//    For aGroup in Land do
+//    begin
+//      DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
+//      inc(x);
+//      //begin primitive
+//      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+//      inc(x);
+////      For vert in aGroup do
+//      For v := 0 to aGroup.count-1 do
+//      begin
+//        Vert:= aGroup[v];
+//        If StrToInt(Vert) > VertexList.count then       //total number of verts. Remember that Land vertices are offset from Sea verts by total number of sea verts
+//        begin
+//          MessageDlg('Found a land face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
+//          exit;
+//        end;
+//        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
+//        inc(x);
+//      end;
+//      DSF_SL.Insert(x,'END_PRIMITIVE');
+//      inc(x);
+//      DSF_SL.Insert(x,'END_PATCH');
+//      inc(x);
+//    end;
+
+    {DSF_SL.Insert(x,'END_PRIMITIVE');
+    inc(x);
+    DSF_SL.Insert(x,'END_PATCH');
+    inc(x); }
 
   {  //begin insertion of a single??? sea patch
     DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
@@ -974,6 +1063,24 @@ begin
 
 end;
 
+procedure TForm1.TXTButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'TXT Files (*.txt)|*.TXT';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    TXTEdit.Text := OpenTextFileDialog1.FileName;
+    DSFEdit2.text := '';
+    OutputDirEdit.text := ExtractFilePath(TXTEdit.Text);
+    OutputNameEdit.Text := ChangeFileExt(ExtractFileName(TXTEdit.Text), '')+'.dsf';
+  end;
+end;
+
+procedure TForm1.TXTEditChange(Sender: TObject);
+begin
+  DSFEdit2.text := '';
+end;
+
 procedure TForm1.TriangleFan(prim_id: integer);
 var aPatchVertex: TPATCH_VERTEX;
     central_vert, x: integer;
@@ -1088,6 +1195,59 @@ begin
     SL.Free;
   End;
 
+end;
+
+procedure TForm1.Drag_Drop_File(var Msg: TMessage);
+//code from http://swepc.se/blog/how-to-drag-drop-files-delphi-10/
+var
+  extension: string;
+  limit, number: Integer;
+  path: array [0 .. MAX_COMPUTERNAME_LENGTH + MAX_PATH] of Char;
+begin
+  limit := DragQueryFile(Msg.WParam, $FFFFFFFF, path, 275) - 1;
+  {
+    if the index value is 0xFFFFFFFF,
+    the return value is a count of the dropped files.
+  }
+  for number := 0 to limit do
+  begin
+    DragQueryFile(Msg.WParam, number, path, 275);
+    {
+      if the index value is between zero and the total number of dropped files,
+      the return value is the required size, in characters.
+    }
+    if (FileExists(path)) then
+    begin
+      extension := ExtractFileExt(path);
+      // Extracts the extension part of path like [.jpg, .png, .txt]
+      if (extension = '.txt') then
+      begin
+        TXTEdit.Text := path;
+        DSFEdit2.Text := '';
+        OutputDirEdit.text := ExtractFilePath(path);
+        OutputNameEdit.Text := ChangeFileExt(ExtractFileName(path), '')+'.dsf';
+      end
+      else if (extension = '.dsf') then
+      begin
+        DSFEdit2.Text := path;
+        TXTEdit.Text := '';
+        OutputDirEdit.text := ExtractFilePath(path);
+        OutputNameEdit.Text := ChangeFileExt(ExtractFileName(path), '')+'.txt';
+      end
+      else
+      begin
+        MessageBox(Form1.Handle, PChar('Not a DSF or TXT file.'),
+          PChar('DSF Tool'), MB_ICONWARNING);
+      end;
+
+    end;
+
+  end;
+  DragFinish(Msg.WParam);
+  // This frees the resources used to store information about the drop.
+
+  If RunDSFToolCheckBox.Checked then
+    DSFToolButton.Click;
 end;
 
 end.

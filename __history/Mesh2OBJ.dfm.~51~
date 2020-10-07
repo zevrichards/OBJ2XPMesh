@@ -11,6 +11,7 @@ object Form1: TForm1
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
+  OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 13
   object Label5: TLabel
@@ -25,7 +26,7 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = OBJ2DSFPage
+    ActivePage = DSFToolTabSheet
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
@@ -172,6 +173,7 @@ object Form1: TForm1
         Height = 17
         Caption = 'X-Plane OBJ'
         TabOrder = 7
+        Visible = False
         OnClick = XPOBJRadioButtonClick
       end
       object CombinedOBJCheckBox: TCheckBox
@@ -233,7 +235,7 @@ object Form1: TForm1
         Width = 73
         Height = 50
         Caption = 'Orientation'
-        ItemIndex = 0
+        ItemIndex = 1
         Items.Strings = (
           '+X+Y+Z'
           '+X+Z-Y')
@@ -246,7 +248,7 @@ object Form1: TForm1
         Height = 21
         NumbersOnly = True
         TabOrder = 14
-        Text = '11064'
+        Text = '5523'
         OnChange = DimXEditChange
       end
       object DimYEdit: TEdit
@@ -256,7 +258,7 @@ object Form1: TForm1
         Height = 21
         NumbersOnly = True
         TabOrder = 15
-        Text = '11064'
+        Text = '5523'
       end
       object ElevationEdit: TEdit
         Left = 347
@@ -275,16 +277,105 @@ object Form1: TForm1
         TabOrder = 17
         Text = 'C:\Users\CSI\Desktop\working'
       end
+      object ScaleEdit: TEdit
+        Left = 83
+        Top = 192
+        Width = 121
+        Height = 21
+        TabOrder = 18
+        Text = '1.000000'
+        OnExit = ScaleEditExit
+      end
     end
-  end
-  object ScaleEdit: TEdit
-    Left = 95
-    Top = 221
-    Width = 121
-    Height = 21
-    TabOrder = 1
-    Text = '1.000000'
-    OnExit = ScaleEditExit
+    object DSFToolTabSheet: TTabSheet
+      Caption = 'DSF Tool'
+      ImageIndex = 2
+      object Label7: TLabel
+        Left = 40
+        Top = 80
+        Width = 81
+        Height = 13
+        Caption = 'Output Directory'
+      end
+      object Label8: TLabel
+        Left = 57
+        Top = 106
+        Width = 64
+        Height = 13
+        Caption = 'Output Name'
+      end
+      object Memo3: TMemo
+        Left = 3
+        Top = 136
+        Width = 827
+        Height = 178
+        TabOrder = 0
+      end
+      object DSFToolButton: TButton
+        Left = 360
+        Top = 320
+        Width = 89
+        Height = 35
+        Caption = 'Run DSF Tool'
+        TabOrder = 1
+        OnClick = DSFToolButtonClick
+      end
+      object TXTButton: TButton
+        Left = 16
+        Top = 20
+        Width = 105
+        Height = 25
+        Caption = 'Load .TXT'
+        TabOrder = 2
+        OnClick = CombinedOBJButtonClick
+      end
+      object DSFButton2: TButton
+        Left = 16
+        Top = 49
+        Width = 105
+        Height = 25
+        Caption = 'Load .DSF'
+        Enabled = False
+        TabOrder = 3
+        Visible = False
+        OnClick = CombinedOBJButtonClick
+      end
+      object DSFEdit2: TEdit
+        Left = 144
+        Top = 49
+        Width = 670
+        Height = 21
+        Enabled = False
+        TabOrder = 4
+        Visible = False
+      end
+      object TXTEdit: TEdit
+        Left = 144
+        Top = 22
+        Width = 670
+        Height = 21
+        Enabled = False
+        TabOrder = 5
+      end
+      object OutputDirEdit: TEdit
+        Left = 144
+        Top = 76
+        Width = 670
+        Height = 21
+        Enabled = False
+        TabOrder = 6
+        Visible = False
+      end
+      object OutputNameEdit: TEdit
+        Left = 144
+        Top = 103
+        Width = 670
+        Height = 21
+        Enabled = False
+        TabOrder = 7
+        Visible = False
+      end
+    end
   end
   object OpenTextFileDialog1: TOpenTextFileDialog
     Left = 816

@@ -11,6 +11,7 @@ object Form1: TForm1
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
+  OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 13
   object Label5: TLabel
@@ -25,7 +26,7 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = OBJ2DSFPage
+    ActivePage = DSFToolTabSheet
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
@@ -234,7 +235,7 @@ object Form1: TForm1
         Width = 73
         Height = 50
         Caption = 'Orientation'
-        ItemIndex = 0
+        ItemIndex = 1
         Items.Strings = (
           '+X+Y+Z'
           '+X+Z-Y')
@@ -284,6 +285,114 @@ object Form1: TForm1
         TabOrder = 18
         Text = '1.000000'
         OnExit = ScaleEditExit
+      end
+    end
+    object DSFToolTabSheet: TTabSheet
+      Caption = 'DSF Tool'
+      ImageIndex = 2
+      ExplicitLeft = 0
+      object Label7: TLabel
+        Left = 40
+        Top = 116
+        Width = 81
+        Height = 13
+        Caption = 'Output Directory'
+      end
+      object Label8: TLabel
+        Left = 57
+        Top = 142
+        Width = 64
+        Height = 13
+        Caption = 'Output Name'
+      end
+      object Memo3: TMemo
+        Left = 3
+        Top = 168
+        Width = 827
+        Height = 146
+        TabOrder = 0
+      end
+      object DSFToolButton: TButton
+        Left = 360
+        Top = 320
+        Width = 89
+        Height = 35
+        Caption = 'Run DSF Tool'
+        TabOrder = 1
+        OnClick = DSFToolButtonClick
+      end
+      object TXTButton: TButton
+        Left = 16
+        Top = 56
+        Width = 105
+        Height = 25
+        Caption = 'Load .TXT'
+        TabOrder = 2
+        OnClick = TXTButtonClick
+      end
+      object DSFButton2: TButton
+        Left = 16
+        Top = 85
+        Width = 105
+        Height = 25
+        Caption = 'Load .DSF'
+        TabOrder = 3
+        OnClick = DSFButton2Click
+      end
+      object DSFEdit2: TEdit
+        Left = 144
+        Top = 85
+        Width = 670
+        Height = 21
+        TabOrder = 4
+        OnChange = DSFEdit2Change
+      end
+      object TXTEdit: TEdit
+        Left = 144
+        Top = 58
+        Width = 670
+        Height = 21
+        TabOrder = 5
+        OnChange = TXTEditChange
+      end
+      object OutputDirEdit: TEdit
+        Left = 144
+        Top = 112
+        Width = 670
+        Height = 21
+        TabOrder = 6
+        OnExit = OutputDirEditExit
+      end
+      object OutputNameEdit: TEdit
+        Left = 144
+        Top = 139
+        Width = 670
+        Height = 21
+        TabOrder = 7
+      end
+      object FindDSFToolButton: TButton
+        Left = 16
+        Top = 25
+        Width = 105
+        Height = 25
+        Caption = 'Find DSFTool'
+        TabOrder = 8
+        OnClick = FindDSFToolButtonClick
+      end
+      object DSFToolPathEdit: TEdit
+        Left = 144
+        Top = 31
+        Width = 670
+        Height = 21
+        TabOrder = 9
+      end
+      object RunDSFToolCheckBox: TCheckBox
+        Left = 8
+        Top = 328
+        Width = 185
+        Height = 17
+        Caption = 'Run DSFTool on Drag and Drop'
+        TabOrder = 10
       end
     end
   end
