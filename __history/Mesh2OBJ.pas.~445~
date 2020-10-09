@@ -6,7 +6,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtDlgs, Vcl.StdCtrls,
   System.StrUtils, System.generics.collections, Vcl.ComCtrls, system.Math,
-  Vcl.ExtCtrls, Launch, WinApi.ShellApi;
+  Vcl.ExtCtrls, Launch, WinApi.ShellApi, Winsock;
 
 type
   TPATCH = class
@@ -258,54 +258,71 @@ procedure TForm1.BurnElevations;
 var FS: TFileStream;
     S: string;
     aSection: TSection;
-    b: smallint;
-    data: Tbytes;
+    r,c,b: smallint;
+    d:  word;
+    data: Array [0..1] of Byte;
     i, idx, datalength, InsertPosition, InsertLength: integer;
-    total_rows, row, column: extended;
+    total_rows, bytesread: integer;
     aVertex: TOBJ_VERTEX;
+    RAW_array: array of array of integer;
 begin
 
   {Load Elevation RAW File
   Find number of rows and columns
   Determine extents of OBJ
+  Read RAW file into 2D array
   For every vertex in vertex list
-    Find XY position as fraction of extents
+    Find XY position as fraction of extents, convert to 2D array position
     Determine row and column position based on fraction of total rows/columns
-    Read height integer from RAW file.
+    Read height integer from RAW file array
     Change height in vertex             }
 
   S := DSFTXTEdit.text+'.elevation.raw';
 
   FS:= TFileStream.Create(S, fmopenread + fmShareDenyNone{ or fmShareDenyWrite});
-  total_rows := sqrt(FS.Size/8)*2;  //total_rows=total_columns
+  total_rows := trunc(sqrt(FS.Size/8)*2);  //total_rows=total_columns
+  Memo1.Lines.add('Reading elevations from RAW...');
+  try
+    FS.Position:=0;
+    SetLength(RAW_Array, total_rows+1, total_rows+1);
 
+    For r := 1 to total_rows do
+    begin
+      For c := 1 to total_rows do
+      begin
+        If FS.Read(data, 2) > 0 then
+        begin
+          inc(BytesRead, 2);
+          d := ntohs(PWord(@data)^);
+          RAW_Array[r,c] := d;
+          Memo1.Lines.add(wordtostr(d));
+        end;
+      end;
+    end;
+    Memo1.Lines.add('Bytes read: '+IntToStr(BytesRead));
+
+  finally
+    FS.Free;
+  end;
+
+  Memo1.Lines.add('Burning elevations into OBJ...');
   Memo1.Lines.add('North: '+FloatToStr(Extents[1])+' South: '+FloatToStr(Extents[2])+' West: '+FloatToStr(Extents[3])+' East: '+FloatToStr(Extents[4]));
-  b := 0;
   For aVertex in  OBJ_Vertex_list_Land do
   begin
 //    Find XY position as fraction of extents
 //    Determine row and column position based on fraction of total rows/columns
 
     //X and Y below may have been incorrectly exchanged
-    row := ((Extents[1]-(aVertex.Y))/(Extents[1]-Extents[2]))*total_rows;      //(N - vertex_lat)/(N-S) * total_rows
-    column := ((Extents[3]-(aVertex.X))/(Extents[3]-Extents[4]))*total_rows;    //(W - vertex_long)/(W-E) * total_columns
+    r := trunc(((Extents[1]-(aVertex.Y))/(Extents[1]-Extents[2]))*total_rows);      //(N - vertex_lat)/(N-S) * total_rows
+    c := trunc(((Extents[3]-(aVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
 
-    FS.Position:=0;
-    FS.Seek(Trunc(row*column)*2, soFromCurrent);
-    FS.Read(b,2);
-//    b:= Swap(b);
-    aVertex.z := b;
+    aVertex.z := RAW_array[r,c];
 
-
-      If b > 0 then
-        Memo1.Lines.add('X: '+IntToStr(Trunc(Row))+#9+'Y: '+IntToStr(Trunc(Column))+#9+'Lat: '+FloatToStr(aVertex.y)+#9+'Long: '+FloatToStr(aVertex.x)+#9+'Height: '+FloatToStr(b));
+    If aVertex.z > 0 then
+      Memo1.Lines.add('X: '+IntToStr(r)+#9+'Y: '+IntToStr(c)+#9+'Lat: '+FloatToStr(aVertex.y)+#9+'Long: '+FloatToStr(aVertex.x)+#9+'Height: '+FloatToStr(aVertex.z));
   end;
+  Memo1.Lines.add('Finished burning elevations.');
 
-  try
-
-  finally
-    FS.Free;
-  end;
 
 end;
 
@@ -330,7 +347,7 @@ end;
 procedure TForm1.Convert2Triangles;
 var aPrimitive: TPRIMITIVE;
 begin
-  Memo1.Lines.Add('Starting Conversion of Primitives to Trianglulated Mesh!');
+  Memo1.Lines.Add('Starting conversion of primitives to trianglulated Mesh...');
 
   For aPrimitive in PrimitiveList do
   begin
