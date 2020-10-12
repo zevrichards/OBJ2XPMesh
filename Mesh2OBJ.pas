@@ -6,7 +6,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtDlgs, Vcl.StdCtrls,
   System.StrUtils, System.generics.collections, Vcl.ComCtrls, system.Math,
-  Vcl.ExtCtrls, Launch, WinApi.ShellApi, Winsock;
+  Vcl.ExtCtrls, Launch, WinApi.ShellApi, Winsock, RSCommonFunctions;
 
 type
   TPATCH = class
@@ -259,12 +259,13 @@ var FS: TFileStream;
     S: string;
     aSection: TSection;
     r,c,b: smallint;
-    d:  word;
-    data: Array [0..1] of Byte;
+    d:  Word;
+    data: Array of Byte;
     i, idx, datalength, InsertPosition, InsertLength: integer;
     total_rows, bytesread: integer;
     aVertex: TOBJ_VERTEX;
-    RAW_array: array of array of integer;
+    RAW_array: array of array of Word;
+    SL: TStringList;
 begin
 
   {Load Elevation RAW File
@@ -286,14 +287,14 @@ begin
     FS.Position:=0;
     SetLength(RAW_Array, total_rows+1, total_rows+1);
 
-    For r := total_rows to 1 do
+    For r := total_rows downto 1 do
     begin
       For c := 1 to total_rows do
       begin
-        If FS.Read(d, 2) > 0 then
+        If FS.Read(d, sizeof(d)) > 0 then
         begin
 //          inc(BytesRead, 2);
-//          d := ntohs(PWord(@d)^);
+//          EndianSwap(@d, sizeof(d));
           RAW_Array[r,c] := d;
 //          if d > 0 then
 //            Memo1.Lines.add({IntToStr(PWord(@data)^)+' '+}inttostr(d));
@@ -304,10 +305,13 @@ begin
 
   finally
     FS.Free;
+    Memo1.Lines.Add('Finished reading elevations.')
   end;
+
 
   Memo1.Lines.add('Burning elevations into OBJ...');
   Memo1.Lines.add('North: '+FloatToStr(Extents[1])+' South: '+FloatToStr(Extents[2])+' West: '+FloatToStr(Extents[3])+' East: '+FloatToStr(Extents[4]));
+
   For aVertex in  OBJ_Vertex_list_Land do
   begin
 //    Find XY position as fraction of extents
@@ -318,12 +322,9 @@ begin
     c := trunc(((Extents[3]-(aVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
 
     aVertex.z := RAW_array[r,c];
-
-    If aVertex.z > 0 then
-      Memo1.Lines.add('X: '+IntToStr(r)+#9+'Y: '+IntToStr(c)+#9+'Lat: '+FloatToStr(aVertex.y)+#9+'Long: '+FloatToStr(aVertex.x)+#9+'Height: '+FloatToStr(aVertex.z));
   end;
 
- { For aVertex in  OBJ_Vertex_list_Sea do
+  For aVertex in  OBJ_Vertex_list_Sea do
   begin
 //    Find XY position as fraction of extents
 //    Determine row and column position based on fraction of total rows/columns
@@ -333,10 +334,7 @@ begin
     c := trunc(((Extents[3]-(aVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
 
     aVertex.z := RAW_array[r,c];
-
-    If aVertex.z > 0 then
-      Memo1.Lines.add('X: '+IntToStr(r)+#9+'Y: '+IntToStr(c)+#9+'Lat: '+FloatToStr(aVertex.y)+#9+'Long: '+FloatToStr(aVertex.x)+#9+'Height: '+FloatToStr(aVertex.z));
-  end;  }
+  end;
 
   Memo1.Lines.add('Finished burning elevations.');
 
@@ -391,9 +389,9 @@ begin
   //S
   Extents[2]:= 999*100000;
   //W
-  Extents[3]:= -999*100000;
+  Extents[3]:= 999*100000;
   //E
-  Extents[4]:= 999*100000;
+  Extents[4]:= -999*100000;
 
   try
     OBJ_Vertex_list_Land := TObjectList<TOBJ_Vertex>.create;
@@ -460,9 +458,9 @@ procedure TForm1.DSFToolButtonClick(Sender: TObject);
 var log: string;
 begin
   If TXTEdit.Text <> '' then
-    RunProgramWaiting('E:\Program Files\X-Plane 11\xptools_win_15-3\tools\DSFTool.exe', '', ['-text2dsf','"'+TXTEdit.text+'"','"'+OutputDirEdit.Text+OutputNameEdit.text+'"'], log);
+    RunProgramWaiting(DSFToolPathEdit.Text, '', ['-text2dsf','"'+TXTEdit.text+'"','"'+OutputDirEdit.Text+OutputNameEdit.text+'"'], log);
   If DSFEdit2.text <> '' then
-    RunProgramWaiting('E:\Program Files\X-Plane 11\xptools_win_15-3\tools\DSFTool.exe', '', ['-dsf2text','"'+DSFEdit2.text+'"','"'+OutputDirEdit.Text+OutputNameEdit.text+'"'], log);
+    RunProgramWaiting(DSFToolPathEdit.Text, '', ['-dsf2text','"'+DSFEdit2.text+'"','"'+OutputDirEdit.Text+OutputNameEdit.text+'"'], log);
   Memo1.Lines.Add(log);
 end;
 
@@ -530,10 +528,10 @@ begin
   If result.lat < Extents[2] then
     Extents[2] := result.lat;
   //western most vertex
-  If result.long > Extents[3] then
+  If result.long < Extents[3] then
     Extents[3] := result.long;
   //eastern most vertex
-  If result.long < Extents[4] then
+  If result.long > Extents[4] then
     Extents[4] := result.long;
 
 //  Memo1.Lines.Add('Adding VERTEX - ID: '+IntToStr(result.id)+#9' Long: '+FloatToStr(result.long)+#9' Lat: '+FloatToStr(result.lat)+#9#9' Height: '+IntToStr(result.height)+#9' X: '+FloatToStr(result.x)+#9' Z: '+FloatToStr(result.z)+#9' Parent: '+IntToStr(result.primitive_id))
@@ -696,10 +694,10 @@ begin
 
         aPatchVertex := TPATCH_VERTEX.create;
 
-        aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]));
-        aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]));
+        aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]));
+        aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]));
         If lon = 3 then
-          aPatchVertex.lat := -aPatchVertex.lat;
+          aPatchVertex.long := -aPatchVertex.long;
         VertexList.Add(aPatchVertex);
       end;
       inc(x)
@@ -864,30 +862,30 @@ begin
     DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
     inc(x);}
 
-//    For aGroup in Water do
-//    begin
-//      DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
-//      inc(x);
-//      //begin primitive
-//      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
-//      inc(x);
-////      For vert in aGroup do
-//      For v := aGroup.count-1 downto 0 do
-//      begin
-//        Vert:= aGroup[v];
-//        If StrToInt(Vert) > VertexList.count then
-//        begin
-//          MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
-//          exit;
-//        end;
-//        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
-//        inc(x);
-//      end;
-//      DSF_SL.Insert(x,'END_PRIMITIVE');
-//      inc(x);
-//      DSF_SL.Insert(x,'END_PATCH');
-//      inc(x);
-//    end;
+    For aGroup in Water do
+    begin
+      DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
+      inc(x);
+      //begin primitive
+      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+      inc(x);
+//      For vert in aGroup do
+      For v := 0 to aGroup.count-1 do
+      begin
+        Vert:= aGroup[v];
+        If StrToInt(Vert) > VertexList.count then
+        begin
+          MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
+          exit;
+        end;
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+        inc(x);
+      end;
+      DSF_SL.Insert(x,'END_PRIMITIVE');
+      inc(x);
+      DSF_SL.Insert(x,'END_PATCH');
+      inc(x);
+    end;
 
     For aGroup in Land do
     begin
@@ -905,7 +903,7 @@ begin
           MessageDlg('Found a land face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
           exit;
         end;
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
         inc(x);
       end;
       DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -1006,7 +1004,8 @@ begin
       x := DSF_SL.Count-1;
       repeat
         dec(x)
-      until ContainsText(DSF_SL.Strings[x], 'sea_level.raw');
+      until ContainsText(DSF_SL.Strings[x], 'sea_level.raw');  //find penultimate line in file
+      {edit last 2 RASTER_DATA lines}
       DSF_SL.Strings[x-1] := 'RASTER_DATA version=1 bpp=2 flags=5 width='+DimXEdit.text+' height='+DimYEdit.text+' scale='+ScaleEdit.text+' offset=0.000000 '+ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw';
       DSF_SL.Strings[x] := 'RASTER_DATA version=1 bpp=2 flags=1 width=256 height=256 scale=1.000000 offset=0.000000 '+SeaLevelEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.sea_level.raw'
     end;

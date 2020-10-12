@@ -26,7 +26,7 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = DSF2OBJPage
+    ActivePage = DSFToolTabSheet
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
@@ -79,10 +79,6 @@ object Form1: TForm1
     object OBJ2DSFPage: TTabSheet
       Caption = 'OBJ To DSF'
       ImageIndex = 1
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       object Label1: TLabel
         Left = 3
         Top = 145
@@ -305,10 +301,6 @@ object Form1: TForm1
     object DSFToolTabSheet: TTabSheet
       Caption = 'DSF Tool'
       ImageIndex = 2
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       object Label7: TLabel
         Left = 40
         Top = 116
