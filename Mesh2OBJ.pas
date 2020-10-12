@@ -293,15 +293,10 @@ begin
       begin
         If FS.Read(d, sizeof(d)) > 0 then
         begin
-//          inc(BytesRead, 2);
-//          EndianSwap(@d, sizeof(d));
           RAW_Array[r,c] := d;
-//          if d > 0 then
-//            Memo1.Lines.add({IntToStr(PWord(@data)^)+' '+}inttostr(d));
         end;
       end;
     end;
-//    Memo1.Lines.add('Bytes read: '+IntToStr(BytesRead));
 
   finally
     FS.Free;
@@ -310,7 +305,7 @@ begin
 
 
   Memo1.Lines.add('Burning elevations into OBJ...');
-  Memo1.Lines.add('North: '+FloatToStr(Extents[1])+' South: '+FloatToStr(Extents[2])+' West: '+FloatToStr(Extents[3])+' East: '+FloatToStr(Extents[4]));
+  Memo1.Lines.add('North: '+FloatToStrF(Extents[1], ffFixed, 13, 9)+' South: '+FloatToStrF(Extents[2], ffFixed, 13, 9)+' West: '+FloatToStrF(Extents[3], ffFixed, 13, 9)+' East: '+FloatToStrF(Extents[4], ffFixed, 13, 9));
 
   For aVertex in  OBJ_Vertex_list_Land do
   begin
@@ -480,45 +475,6 @@ begin
   result.x := StrToFloat(trim(CurrentLine.Split(Delimiters)[4]));
   result.z := StrToFloat(trim(CurrentLine.Split(Delimiters)[5]));
 
-//  value := '';
-//  y := Length('PATCH_VERTEX');
-//
-//  repeat inc(y) until (TryStrToInt(CurrentLine[y], x)) or ((CurrentLine[y]='-'));  //find first value as there may be a lot of white space
-//
-//  repeat
-//    value:= value + CurrentLine[y];
-//    inc(y);
-//  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
-//  result.long:= StrToFloat(trim(value));
-//
-//  value := '';
-//  repeat
-//    value:= value + CurrentLine[y];
-//    inc(y);
-//  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
-//  result.lat:= StrToFloat(trim(value));
-//
-//  value := '';
-//  repeat
-//    value:= value + CurrentLine[y];
-//    inc(y);
-//  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
-//  result.height:= Trunc(StrToFloat(trim(value)));        {will this limit resolution to integer values?}
-//
-//  value := '';
-//  repeat
-//    value:= value + CurrentLine[y];
-//    inc(y);
-//  until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
-//  result.x:= StrToFloat(trim(value));
-//
-//  value := '';
-//  repeat
-//    value:= value + CurrentLine[y];
-//    inc(y);
-//  until (((CurrentLine[y] = ' ') or (CurrentLine[y] = #9)) or (y >= length(CurrentLine)));  //EoL
-//  result.z:= StrToFloat(trim(value));
-
   result.primitive_id := prim_count;
 
   //northern most vertex
@@ -534,7 +490,7 @@ begin
   If result.long > Extents[4] then
     Extents[4] := result.long;
 
-//  Memo1.Lines.Add('Adding VERTEX - ID: '+IntToStr(result.id)+#9' Long: '+FloatToStr(result.long)+#9' Lat: '+FloatToStr(result.lat)+#9#9' Height: '+IntToStr(result.height)+#9' X: '+FloatToStr(result.x)+#9' Z: '+FloatToStr(result.z)+#9' Parent: '+IntToStr(result.primitive_id))
+//  Memo1.Lines.Add('Adding VERTEX - ID: '+IntToStr(result.id)+#9' Long: '+FloatToStrF(result.long)+#9' Lat: '+FloatToStrF(result.lat)+#9#9' Height: '+IntToStr(result.height)+#9' X: '+FloatToStrF(result.x)+#9' Z: '+FloatToStrF(result.z)+#9' Parent: '+IntToStr(result.primitive_id))
 end;
 
 function TForm1.Get_Primitive(CurrentLine: string): TPRIMITIVE;
@@ -614,13 +570,6 @@ begin
     MessageDlg('Invalid Scale', mtWarning, mbOkCancel, 0, mbOk)
 end;
 
-//procedure TForm1.DeletePrimitives(DSF_SL: TStringList);
-//var x: integer;
-//begin
-//
-//
-//
-//end;
 
 procedure TForm1.OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
 var v,x,y,z, lat,lon, v2,v3: integer;
@@ -654,11 +603,11 @@ begin
     ////////////////COMBINED WAVEFRONT OBJ//////////////////////////
     {Collect Vertices}
     x := 0;
-    lat := 1;
+    lon := 1;
     If RadioGroup1.ItemIndex = 0 then      //This depends on whether OBJ orientation is XYZ or XZY
-      lon := 2                             //location in the line where will be looking for the longtitude = 3rd Column.
+      lat := 2                             //location in the line where will be looking for the longtitude = 3rd Column.
     else
-      lon := 3;                            //location in the line where will be looking for the longtitude = 4th Column.
+      lat := 3;                            //location in the line where will be looking for the longtitude = 4th Column.
 
     If OBJ_SL.Count = 0 then
     begin
@@ -676,14 +625,14 @@ begin
       inc(x);
     until ContainsText(OBJ_SL.Strings[x],'v ');   //search for first vertex
 
-    If abs(StrToFloat(trim(OBJ_SL.Strings[x].Split(Delimiters)[lon]))) < 100000 then
+    If abs(StrToFloat(trim(OBJ_SL.Strings[x].Split(Delimiters)[lat]))) < 100000 then
     begin
       If MessageDlg('The orientation of this OBJ appears to be different from what was selected. Would you like to switch?', mtWarning, mbYesNo, 0) = mrYes then
       begin
-        If lon = 2 then
-          lon := 3            //change to 4th column
+        If lat = 2 then
+          lat := 3            //change to 4th column
         else
-          lon :=2;            //change to 3rd column
+          lat :=2;            //change to 3rd column
       end;
     end;
 
@@ -694,10 +643,10 @@ begin
 
         aPatchVertex := TPATCH_VERTEX.create;
 
-        aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]));
         aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]));
-        If lon = 3 then
-          aPatchVertex.long := -aPatchVertex.long;
+        aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]));
+        If lat = 3 then
+          aPatchVertex.lat := -aPatchVertex.lat;
         VertexList.Add(aPatchVertex);
       end;
       inc(x)
@@ -805,47 +754,6 @@ begin
     /////////////////////
 
 
-{    Memo2.Lines.Add('Building New vertex list...');
-    For CurrentLine in OBJ_SL do
-    begin
-
-
-
-      If ContainsText(CurrentLine, 'VT') then
-      begin
-        aPatchVertex := TPATCH_VERTEX.create;
-        value := '';
-        y := Length('VT');
-
-        repeat inc(y) until (TryStrToInt(CurrentLine[y], x)) or ((CurrentLine[y]='-'));  //find first value as there may be a lot of white space
-
-        repeat
-          value:= value + CurrentLine[y];
-          inc(y);
-        until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space or tab delimiter
-        aPatchVertex.long:= StrToFloat(trim(value));
-
-        repeat
-          inc(y)
-        until CurrentLine[y] = '.';
-        repeat
-          inc(y)
-        until ( ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9)) and ((TryStrToInt(CurrentLine[y+1], x) or (CurrentLine[y+1]='-')) ));  //skip Z value in the middle//skip Z value in the middle
-
-        value := '';
-        repeat
-          value:= value + CurrentLine[y];
-          inc(y);
-        until ((CurrentLine[y] = ' ') or (CurrentLine[y] = #9));  //space delimiter
-        aPatchVertex.lat:= StrToFloat(trim(value));
-
-        Inserted_VertexList.Add(aPatchVertex);
-  //      Memo2.Lines.Add('Vertex:'+FloatToStr(aPatchVertex.lat)+' '+FloatToStr(aPatchVertex.long));
-      end;
-
-
-    end;}
-
     {Begin insertion of patches and primitives}
 
     //find insertion point for edits
@@ -864,13 +772,14 @@ begin
 
     For aGroup in Water do
     begin
-      DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
+      DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 7');
       inc(x);
       //begin primitive
       DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
       inc(x);
 //      For vert in aGroup do
-      For v := 0 to aGroup.count-1 do
+      For v := aGroup.count-1 downto 0 do
+//      For v := 0 to aGroup.count-1 do
       begin
         Vert:= aGroup[v];
         If StrToInt(Vert) > VertexList.count then
@@ -878,7 +787,7 @@ begin
           MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
           exit;
         end;
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+{'-32768.000000000'}'0'{FloatToStrF(VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9)}+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
         inc(x);
       end;
       DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -895,7 +804,8 @@ begin
       DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
       inc(x);
 //      For vert in aGroup do
-      For v := 0 to aGroup.count-1 do
+      For v := aGroup.count-1 downto 0 do
+//      For v := 0 to aGroup.count-1 do
       begin
         Vert:= aGroup[v];
         If StrToInt(Vert) > VertexList.count then       //total number of verts. Remember that Land vertices are offset from Sea verts by total number of sea verts
@@ -903,7 +813,7 @@ begin
           MessageDlg('Found a land face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
           exit;
         end;
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
         inc(x);
       end;
       DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -930,7 +840,7 @@ begin
         MessageDlg('Found a face vertex reference that does not exist in the Sea Vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
         exit;
       end;
-      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
       inc(x);
     end;
     DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -951,7 +861,7 @@ begin
         MessageDlg('Found a face vertex reference that does not exist in the Land Vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
         exit;
       end;
-      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStr(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
       inc(x);
     end;
     DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -969,7 +879,7 @@ begin
     inc(x);
     For IDX in IDX_List do
     begin
-      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_VertexList[StrToInt(IDX)].long/100000)+#9+FloatToStr(Inserted_VertexList[StrToInt(IDX)].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(Inserted_VertexList[StrToInt(IDX)].long/100000)+#9+FloatToStrF(Inserted_VertexList[StrToInt(IDX)].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
       inc(x);
     end;
     DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -989,7 +899,7 @@ begin
       //insert vertices by 3s
       For z := 1 to 3 do
       begin
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStr(Inserted_VertexList[y+z].long/100000)+#9+FloatToStr(Inserted_VertexList[y+z].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(Inserted_VertexList[y+z].long/100000)+#9+FloatToStrF(Inserted_VertexList[y+z].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
         inc(x);
       end;
 
@@ -1008,6 +918,13 @@ begin
       {edit last 2 RASTER_DATA lines}
       DSF_SL.Strings[x-1] := 'RASTER_DATA version=1 bpp=2 flags=5 width='+DimXEdit.text+' height='+DimYEdit.text+' scale='+ScaleEdit.text+' offset=0.000000 '+ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw';
       DSF_SL.Strings[x] := 'RASTER_DATA version=1 bpp=2 flags=1 width=256 height=256 scale=1.000000 offset=0.000000 '+SeaLevelEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.sea_level.raw'
+    end;
+
+
+    If not ContainsText(DSF_SL.text, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards') then
+    begin
+      x := DSF_SL.IndexOf('DSF2TEXT')+2;
+      DSF_SL.Insert(x, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards');
     end;
 
     Memo2.Lines.Add('Saving new DSF.');
@@ -1278,7 +1195,7 @@ begin
   begin
     If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
       aVertex.z := 0;
-    SL.Add('v '+FloatToStr(aVertex.x*100000)+' '+FloatToStr(aVertex.y*100000)+' '+FloatToStr(aVertex.z){'0'});
+    SL.Add('v '+FloatToStrF(aVertex.x*100000, ffFixed, 11,4)+' '+FloatToStrF(aVertex.y*100000, ffFixed, 11,4)+' '+FloatToStrF(aVertex.z, ffFixed, 11,4){'0'});
   end;
 
   For aFace in OBJ_Face_List do
@@ -1293,7 +1210,7 @@ begin
   begin
     If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
       aVertex.z := 0;
-    SL.Add('v '+FloatToStr(aVertex.x*100000)+' '+FloatToStr(aVertex.y*100000)+' '+FloatToStr(aVertex.z){'0'});
+    SL.Add('v '+FloatToStrF(aVertex.x*100000, ffFixed, 11,4)+' '+FloatToStrF(aVertex.y*100000, ffFixed, 11,4)+' '+FloatToStrF(aVertex.z, ffFixed, 11,4){'0'});
   end;
 
   For aFace in OBJ_Face_List do
