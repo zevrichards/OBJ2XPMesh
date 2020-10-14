@@ -26,7 +26,7 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = OBJ2DSFPage
+    ActivePage = DSFToolTabSheet
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
@@ -39,22 +39,13 @@ object Form1: TForm1
         TabOrder = 0
         OnClick = DSFButtonClick
       end
-      object DSFTXTEdit: TEdit
-        Left = 84
-        Top = 20
-        Width = 652
-        Height = 21
-        Enabled = False
-        TabOrder = 1
-        Text = 'C:\users\CSI\desktop\working\+13-062.txt'
-      end
       object Memo1: TMemo
         Left = 3
         Top = 96
         Width = 828
         Height = 233
         ScrollBars = ssVertical
-        TabOrder = 2
+        TabOrder = 1
       end
       object Convert2OBJButton: TButton
         Left = 355
@@ -62,18 +53,27 @@ object Form1: TForm1
         Width = 121
         Height = 25
         Caption = 'Convert DSF to OBJ'
-        TabOrder = 3
+        TabOrder = 2
         OnClick = Convert2OBJButtonClick
       end
       object ElevationCheckBox: TCheckBox
-        Left = 84
-        Top = 47
+        Left = 3
+        Top = 55
         Width = 153
         Height = 17
         Caption = 'Burn Elevations into OBJ'
         Checked = True
         State = cbChecked
+        TabOrder = 3
+      end
+      object DSFTXTEdit: TEdit
+        Left = 160
+        Top = 20
+        Width = 652
+        Height = 21
+        Enabled = False
         TabOrder = 4
+        Text = 'C:\users\CSI\desktop\working\+13-062.txt'
       end
     end
     object OBJ2DSFPage: TTabSheet
@@ -101,7 +101,7 @@ object Form1: TForm1
         Caption = 'Path to Elevation Raster'
       end
       object Label4: TLabel
-        Left = 222
+        Left = 224
         Top = 169
         Width = 119
         Height = 13
@@ -285,6 +285,7 @@ object Form1: TForm1
         Top = 165
         Width = 483
         Height = 21
+        Enabled = False
         TabOrder = 17
         Text = 'C:\Users\CSI\Desktop\working'
       end
@@ -296,6 +297,17 @@ object Form1: TForm1
         TabOrder = 18
         Text = '1.000000'
         OnExit = ScaleEditExit
+      end
+      object LandasSeaCheckBox: TCheckBox
+        Left = 224
+        Top = 188
+        Width = 225
+        Height = 17
+        Caption = 'Use Elevation Raster as Seal Level Raster'
+        Checked = True
+        State = cbChecked
+        TabOrder = 19
+        OnClick = LandasSeaCheckBoxClick
       end
     end
     object DSFToolTabSheet: TTabSheet
@@ -349,52 +361,14 @@ object Form1: TForm1
         TabOrder = 3
         OnClick = DSFButton2Click
       end
-      object DSFEdit2: TEdit
-        Left = 144
-        Top = 85
-        Width = 670
-        Height = 21
-        TabOrder = 4
-        OnChange = DSFEdit2Change
-      end
-      object TXTEdit: TEdit
-        Left = 144
-        Top = 58
-        Width = 670
-        Height = 21
-        TabOrder = 5
-        OnChange = TXTEditChange
-      end
-      object OutputDirEdit: TEdit
-        Left = 144
-        Top = 112
-        Width = 670
-        Height = 21
-        TabOrder = 6
-        OnExit = OutputDirEditExit
-      end
-      object OutputNameEdit: TEdit
-        Left = 144
-        Top = 139
-        Width = 670
-        Height = 21
-        TabOrder = 7
-      end
       object FindDSFToolButton: TButton
         Left = 16
         Top = 25
         Width = 105
         Height = 25
         Caption = 'Find DSFTool'
-        TabOrder = 8
+        TabOrder = 4
         OnClick = FindDSFToolButtonClick
-      end
-      object DSFToolPathEdit: TEdit
-        Left = 144
-        Top = 31
-        Width = 670
-        Height = 21
-        TabOrder = 9
       end
       object RunDSFToolCheckBox: TCheckBox
         Left = 8
@@ -402,7 +376,44 @@ object Form1: TForm1
         Width = 185
         Height = 17
         Caption = 'Run DSFTool on Drag and Drop'
+        TabOrder = 5
+      end
+      object OutputDirCombo: TComboBox
+        Left = 144
+        Top = 112
+        Width = 670
+        Height = 21
+        TabOrder = 6
+        OnExit = OutputDirComboExit
+      end
+      object OutputNameCombo: TComboBox
+        Left = 144
+        Top = 141
+        Width = 670
+        Height = 21
+        TabOrder = 7
+      end
+      object DSFToolPathCombo: TComboBox
+        Left = 144
+        Top = 27
+        Width = 670
+        Height = 21
+        TabOrder = 8
+      end
+      object DSFCombo: TComboBox
+        Left = 144
+        Top = 85
+        Width = 670
+        Height = 21
+        TabOrder = 9
+      end
+      object TXTCombo: TComboBox
+        Left = 144
+        Top = 58
+        Width = 670
+        Height = 21
         TabOrder = 10
+        OnChange = TXTComboChange
       end
     end
   end

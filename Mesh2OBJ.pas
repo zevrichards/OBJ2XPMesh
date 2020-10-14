@@ -91,16 +91,17 @@ type
     DSFToolButton: TButton;
     TXTButton: TButton;
     DSFButton2: TButton;
-    DSFEdit2: TEdit;
-    TXTEdit: TEdit;
-    OutputDirEdit: TEdit;
     Label7: TLabel;
-    OutputNameEdit: TEdit;
     Label8: TLabel;
     FindDSFToolButton: TButton;
-    DSFToolPathEdit: TEdit;
     RunDSFToolCheckBox: TCheckBox;
     ElevationCheckBox: TCheckBox;
+    LandasSeaCheckBox: TCheckBox;
+    DSFToolPathCombo: TComboBox;
+    OutputDirCombo: TComboBox;
+    OutputNameCombo: TComboBox;
+    DSFCombo: TComboBox;
+    TXTCombo: TComboBox;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -125,12 +126,13 @@ type
     procedure FormCreate(Sender: TObject);
     procedure Drag_Drop_File(var Msg: TMessage); message WM_DROPFILES;
     procedure FindDSFToolButtonClick(Sender: TObject);
-    procedure TXTEditChange(Sender: TObject);
-    procedure DSFEdit2Change(Sender: TObject);
     procedure TXTButtonClick(Sender: TObject);
     procedure DSFButton2Click(Sender: TObject);
-    procedure OutputDirEditExit(Sender: TObject);
     procedure BurnElevations;
+    procedure LandasSeaCheckBoxClick(Sender: TObject);
+    procedure BeforeDestruction;  override;
+    procedure OutputDirComboExit(Sender: TObject);
+    procedure TXTComboChange(Sender: TObject);
   private
     { Private declarations }
   public
@@ -263,7 +265,7 @@ var FS: TFileStream;
     data: Array of Byte;
     i, idx, datalength, InsertPosition, InsertLength: integer;
     total_rows, bytesread: integer;
-    aVertex: TOBJ_VERTEX;
+    anOBJVertex: TOBJ_VERTEX;
     RAW_array: array of array of Word;
     SL: TStringList;
 begin
@@ -307,28 +309,28 @@ begin
   Memo1.Lines.add('Burning elevations into OBJ...');
   Memo1.Lines.add('North: '+FloatToStrF(Extents[1], ffFixed, 13, 9)+' South: '+FloatToStrF(Extents[2], ffFixed, 13, 9)+' West: '+FloatToStrF(Extents[3], ffFixed, 13, 9)+' East: '+FloatToStrF(Extents[4], ffFixed, 13, 9));
 
-  For aVertex in  OBJ_Vertex_list_Land do
+  For anOBJVertex in  OBJ_Vertex_list_Land do
   begin
 //    Find XY position as fraction of extents
 //    Determine row and column position based on fraction of total rows/columns
 
     //X and Y below may have been incorrectly exchanged
-    r := trunc(((Extents[1]-(aVertex.Y))/(Extents[1]-Extents[2]))*total_rows);      //(N - vertex_lat)/(N-S) * total_rows
-    c := trunc(((Extents[3]-(aVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
+    r := trunc(((Extents[1]-(anOBJVertex.Y))/(Extents[1]-Extents[2]))*total_rows);      //(N - vertex_lat)/(N-S) * total_rows
+    c := trunc(((Extents[3]-(anOBJVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
 
-    aVertex.z := RAW_array[r,c];
+    anOBJVertex.z := RAW_array[r,c];
   end;
 
-  For aVertex in  OBJ_Vertex_list_Sea do
+  For anOBJVertex in  OBJ_Vertex_list_Sea do
   begin
 //    Find XY position as fraction of extents
 //    Determine row and column position based on fraction of total rows/columns
 
     //X and Y below may have been incorrectly exchanged
-    r := trunc(((Extents[1]-(aVertex.Y))/(Extents[1]-Extents[2]))*total_rows);      //(N - vertex_lat)/(N-S) * total_rows
-    c := trunc(((Extents[3]-(aVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
+    r := trunc(((Extents[1]-(anOBJVertex.Y))/(Extents[1]-Extents[2]))*total_rows);      //(N - vertex_lat)/(N-S) * total_rows
+    c := trunc(((Extents[3]-(anOBJVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
 
-    aVertex.z := RAW_array[r,c];
+    anOBJVertex.z := RAW_array[r,c];
   end;
 
   Memo1.Lines.add('Finished burning elevations.');
@@ -343,13 +345,27 @@ begin
   OpenTextFileDialog1.Options := [];
   If OpenTextFileDialog1.Execute() then
   begin
-    DSFToolPathEdit.Text := OpenTextFileDialog1.FileName;
+    DSFToolPathCombo.Text := OpenTextFileDialog1.FileName;
   end;
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);
+var Comps: Array of TComponent;
+    x: integer;
 begin
   DragAcceptFiles(Handle, True);
+
+  //load component states from .fs file
+  If FileExists('OBJ2XPMesh.fs') then
+  begin
+    SetLength(Comps, ComponentCount);
+    For x := 0 to ComponentCount-1 do
+    begin
+      Comps[x]:= Components[x];
+    end;
+
+    LoadState(Comps, ComponentCount, ExtractFilePath(Application.ExeName)+'OBJ2XPMesh.fs')
+  end;
 end;
 
 //we will be ignoring the types of primitives for now
@@ -427,10 +443,10 @@ begin
   OpenTextFileDialog1.Options := [];
   If OpenTextFileDialog1.Execute() then
   begin
-    DSFEdit2.Text := OpenTextFileDialog1.FileName;
-    TXTEdit.text := '';
-    OutputDirEdit.text := ExtractFilePath(DSFEdit2.Text);
-    OutputNameEdit.Text := ChangeFileExt(ExtractFileName(DSFEdit2.Text), '')+'.dsf';
+    DSFCombo.Text := OpenTextFileDialog1.FileName;
+    TXTCombo.text := '';
+    OutputDirCombo.text := ExtractFilePath(DSFCombo.Text);
+    OutputNameCombo.Text := ChangeFileExt(ExtractFileName(DSFCombo.Text), '')+'.dsf';
   end;
 end;
 
@@ -444,19 +460,26 @@ begin
   end;
 end;
 
-procedure TForm1.DSFEdit2Change(Sender: TObject);
-begin
-  TXTEdit.text := '';
-end;
 
 procedure TForm1.DSFToolButtonClick(Sender: TObject);
 var log: string;
 begin
-  If TXTEdit.Text <> '' then
-    RunProgramWaiting(DSFToolPathEdit.Text, '', ['-text2dsf','"'+TXTEdit.text+'"','"'+OutputDirEdit.Text+OutputNameEdit.text+'"'], log);
-  If DSFEdit2.text <> '' then
-    RunProgramWaiting(DSFToolPathEdit.Text, '', ['-dsf2text','"'+DSFEdit2.text+'"','"'+OutputDirEdit.Text+OutputNameEdit.text+'"'], log);
+  If TXTCombo.Text <> '' then
+    RunProgramWaiting(DSFToolPathCombo.Text, '', ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], log);
+  If DSFCombo.text <> '' then
+    RunProgramWaiting(DSFToolPathCombo.Text, '', ['-dsf2text','"'+DSFCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], log);
   Memo1.Lines.Add(log);
+
+  If not ContainsText(DSFToolPathCombo.Items.Text, DSFToolPathCombo.text) then
+    DSFToolPathCombo.Items.Add(DSFToolPathCombo.text);
+  If not ContainsText(OutputDirCombo.Items.Text, OutputDirCombo.text) then
+    OutputDirCombo.Items.Add(OutputDirCombo.text);
+  If not ContainsText(OutputNameCombo.Items.Text, OutputNameCombo.text) then
+    OutputNameCombo.Items.Add(OutputNameCombo.text);
+  If not ContainsText(TXTCombo.Items.Text, TXTCombo.text) then
+    TXTCombo.Items.Add(TXTCombo.text);
+  If not ContainsText(DSFCombo.Items.Text, DSFCombo.text) then
+    DSFCombo.Items.Add(DSFCombo.text);
 end;
 
 function TForm1.Get_PatchVertex(CurrentLine: string): TPATCH_VERTEX;
@@ -554,9 +577,9 @@ begin
 
 end;
 
-procedure TForm1.OutputDirEditExit(Sender: TObject);
+procedure TForm1.OutputDirComboExit(Sender: TObject);
 begin
-  With OutputDirEdit do
+  With OutputDirCombo do
   begin
     If text[high(text)] <> '\' then
      text := text + '\';
@@ -770,9 +793,10 @@ begin
     DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
     inc(x);}
 
+
     For aGroup in Water do
     begin
-      DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 7');
+      DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
       inc(x);
       //begin primitive
       DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
@@ -787,7 +811,7 @@ begin
           MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
           exit;
         end;
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+{'-32768.000000000'}'0'{FloatToStrF(VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9)}+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+'-32768.000000000'{'0'}{FloatToStrF(VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9)}+#9+'-0.000015259'+#9+'-0.000015259');
         inc(x);
       end;
       DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -918,6 +942,10 @@ begin
       {edit last 2 RASTER_DATA lines}
       DSF_SL.Strings[x-1] := 'RASTER_DATA version=1 bpp=2 flags=5 width='+DimXEdit.text+' height='+DimYEdit.text+' scale='+ScaleEdit.text+' offset=0.000000 '+ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw';
       DSF_SL.Strings[x] := 'RASTER_DATA version=1 bpp=2 flags=1 width=256 height=256 scale=1.000000 offset=0.000000 '+SeaLevelEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.sea_level.raw'
+//      If LandasSeaCheckBox.Checked then
+//        DSF_SL.Strings[x] := DSF_SL.Strings[x-1]
+//      else
+//        DSF_SL.Strings[x] := 'RASTER_DATA version=1 bpp=2 flags=1 width=256 height=256 scale=1.000000 offset=0.000000 '+SeaLevelEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.sea_level.raw'
     end;
 
 
@@ -938,6 +966,14 @@ begin
   end;
 end;
 
+
+procedure TForm1.LandasSeaCheckBoxClick(Sender: TObject);
+begin
+  If LandasSeaCheckBox.Checked then
+    SeaLevelEdit.Enabled := false
+  else
+    SeaLevelEdit.Enabled := true;
+end;
 
 procedure TForm1.CombinedOBJButtonClick(Sender: TObject);
 begin
@@ -1108,16 +1144,17 @@ begin
   OpenTextFileDialog1.Options := [];
   If OpenTextFileDialog1.Execute() then
   begin
-    TXTEdit.Text := OpenTextFileDialog1.FileName;
-    DSFEdit2.text := '';
-    OutputDirEdit.text := ExtractFilePath(TXTEdit.Text);
-    OutputNameEdit.Text := ChangeFileExt(ExtractFileName(TXTEdit.Text), '')+'.dsf';
+    TXTCombo.Text := OpenTextFileDialog1.FileName;
+    DSFCombo.text := '';
+    OutputDirCombo.text := ExtractFilePath(TXTCombo.Text);
+    OutputNameCombo.Text := ChangeFileExt(ExtractFileName(TXTCombo.Text), '')+'.dsf';
   end;
 end;
 
-procedure TForm1.TXTEditChange(Sender: TObject);
+
+procedure TForm1.TXTComboChange(Sender: TObject);
 begin
-  DSFEdit2.text := '';
+  DSFCombo.text := '';
 end;
 
 procedure TForm1.TriangleFan(prim_id: integer);
@@ -1269,17 +1306,17 @@ begin
       // Extracts the extension part of path like [.jpg, .png, .txt]
       if (extension = '.txt') then
       begin
-        TXTEdit.Text := path;
-        DSFEdit2.Text := '';
-        OutputDirEdit.text := ExtractFilePath(path);
-        OutputNameEdit.Text := ChangeFileExt(ExtractFileName(path), '')+'.dsf';
+        TXTCombo.Text := path;
+        DSFCombo.Text := '';
+        OutputDirCombo.text := ExtractFilePath(path);
+        OutputNameCombo.Text := ChangeFileExt(ExtractFileName(path), '')+'.dsf';
       end
       else if (extension = '.dsf') then
       begin
-        DSFEdit2.Text := path;
-        TXTEdit.Text := '';
-        OutputDirEdit.text := ExtractFilePath(path);
-        OutputNameEdit.Text := ChangeFileExt(ExtractFileName(path), '')+'.txt';
+        DSFCombo.Text := path;
+        TXTCombo.Text := '';
+        OutputDirCombo.text := ExtractFilePath(path);
+        OutputNameCombo.Text := ChangeFileExt(ExtractFileName(path), '')+'.txt';
       end
       else
       begin
@@ -1295,7 +1332,24 @@ begin
 
   If RunDSFToolCheckBox.Checked then
     DSFToolButton.Click;
+
 end;
+
+procedure TForm1.BeforeDestruction;
+var Comps: Array of TComponent;
+    x: integer;
+begin
+  inherited;
+
+  SetLength(Comps, ComponentCount);
+  For x := 0 to ComponentCount-1 do
+  begin
+    Comps[x]:= Components[x];
+  end;
+
+  SaveState(Comps, ComponentCount, ExtractFilePath(Application.ExeName)+'OBJ2XPMesh.fs');
+end;
+
 
 end.
 
