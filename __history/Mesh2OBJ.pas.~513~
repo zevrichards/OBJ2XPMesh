@@ -91,17 +91,17 @@ type
     DSFToolButton: TButton;
     TXTButton: TButton;
     DSFButton2: TButton;
-    DSFEdit2: TEdit;
-    TXTEdit: TEdit;
     Label7: TLabel;
     Label8: TLabel;
     FindDSFToolButton: TButton;
     RunDSFToolCheckBox: TCheckBox;
     ElevationCheckBox: TCheckBox;
-    LandasSeaCheckBox: TCheckBox;
     DSFToolPathCombo: TComboBox;
     OutputDirCombo: TComboBox;
     OutputNameCombo: TComboBox;
+    DSFCombo: TComboBox;
+    TXTCombo: TComboBox;
+    ElevationSourceRadioGroup: TRadioGroup;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -126,14 +126,15 @@ type
     procedure FormCreate(Sender: TObject);
     procedure Drag_Drop_File(var Msg: TMessage); message WM_DROPFILES;
     procedure FindDSFToolButtonClick(Sender: TObject);
-    procedure TXTEditChange(Sender: TObject);
-    procedure DSFEdit2Change(Sender: TObject);
     procedure TXTButtonClick(Sender: TObject);
     procedure DSFButton2Click(Sender: TObject);
-    procedure OutputDirEditExit(Sender: TObject);
     procedure BurnElevations;
-    procedure LandasSeaCheckBoxClick(Sender: TObject);
     procedure BeforeDestruction;  override;
+    procedure OutputDirComboExit(Sender: TObject);
+    procedure TXTComboChange(Sender: TObject);
+	procedure ReadElevations(FileName: string; out rows_out: integer);
+    function FindElevation(aVertex: TOBJ_Vertex; total_rows: integer): word;
+    procedure SetExtents(aPatchVertex: TPATCH_VERTEX);
   private
     { Private declarations }
   public
@@ -150,6 +151,7 @@ var
   OBJ_Vertex_list_Land, OBJ_Vertex_list_Sea: TObjectList<TOBJ_Vertex>;
   OBJ_Face_List: TObjectList<TOBJ_Face>;
   Extents: array [1..4] of real; //N,S,W,E
+  RAW_array: array of array of Word;
 
 const Delimiters: array of char = [' ', #9, '/', '\'];
 
@@ -191,10 +193,10 @@ end;
 
 procedure TForm1.ExtractPrimitives;
 var SL: TStringList;
-    x, y: integer;
-    aPatchVertex: TPATCH_VERTEX;
+    x: integer;
+								
 
-    CurrentLine, value: string;
+    CurrentLine: string;
 begin
   Memo1.Lines.Add('Starting Extraction of Primitives...');
 
@@ -258,17 +260,9 @@ begin
 end;
 
 procedure TForm1.BurnElevations;
-var FS: TFileStream;
-    S: string;
-    aSection: TSection;
-    r,c,b: smallint;
-    d:  Word;
-    data: Array of Byte;
-    i, idx, datalength, InsertPosition, InsertLength: integer;
-    total_rows, bytesread: integer;
-    anOBJVertex: TOBJ_VERTEX;
-    RAW_array: array of array of Word;
-    SL: TStringList;
+var total_rows: integer;
+    aVertex: TOBJ_VERTEX;
+	
 begin
 
   {Load Elevation RAW File
@@ -281,57 +275,25 @@ begin
     Read height integer from RAW file array
     Change height in vertex             }
 
-  S := DSFTXTEdit.text+'.elevation.raw';
-
-  FS:= TFileStream.Create(S, fmopenread + fmShareDenyNone{ or fmShareDenyWrite});
-  total_rows := trunc(sqrt(FS.Size/8)*2);  //total_rows=total_columns
-  Memo1.Lines.add('Reading elevations from RAW...');
-  try
-    FS.Position:=0;
-    SetLength(RAW_Array, total_rows+1, total_rows+1);
-
-    For r := total_rows downto 1 do
-    begin
-      For c := 1 to total_rows do
-      begin
-        If FS.Read(d, sizeof(d)) > 0 then
-        begin
-          RAW_Array[r,c] := d;
-        end;
-      end;
-    end;
-
-  finally
-    FS.Free;
-    Memo1.Lines.Add('Finished reading elevations.')
+  If RAW_Array = nil then
+  begin
+    Memo1.Lines.add('Reading elevations from RAW...');
+    ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', total_rows);
+    Memo1.Lines.Add('Finished reading elevations.');
   end;
 
 
   Memo1.Lines.add('Burning elevations into OBJ...');
-  Memo1.Lines.add('North: '+FloatToStrF(Extents[1], ffFixed, 13, 9)+' South: '+FloatToStrF(Extents[2], ffFixed, 13, 9)+' West: '+FloatToStrF(Extents[3], ffFixed, 13, 9)+' East: '+FloatToStrF(Extents[4], ffFixed, 13, 9));
+//  Memo1.Lines.add('North: '+FloatToStrF(Extents[1], ffFixed, 13, 9)+' South: '+FloatToStrF(Extents[2], ffFixed, 13, 9)+' West: '+FloatToStrF(Extents[3], ffFixed, 13, 9)+' East: '+FloatToStrF(Extents[4], ffFixed, 13, 9));
 
-  For anOBJVertex in  OBJ_Vertex_list_Land do
+  For aVertex in  OBJ_Vertex_list_Land do
   begin
-//    Find XY position as fraction of extents
-//    Determine row and column position based on fraction of total rows/columns
-
-    //X and Y below may have been incorrectly exchanged
-    r := trunc(((Extents[1]-(anOBJVertex.Y))/(Extents[1]-Extents[2]))*total_rows);      //(N - vertex_lat)/(N-S) * total_rows
-    c := trunc(((Extents[3]-(anOBJVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
-
-    anOBJVertex.z := RAW_array[r,c];
+    aVertex.z := FindElevation(aVertex, total_rows);
   end;
-
-  For anOBJVertex in  OBJ_Vertex_list_Sea do
+  
+  For aVertex in  OBJ_Vertex_list_Sea do
   begin
-//    Find XY position as fraction of extents
-//    Determine row and column position based on fraction of total rows/columns
-
-    //X and Y below may have been incorrectly exchanged
-    r := trunc(((Extents[1]-(anOBJVertex.Y))/(Extents[1]-Extents[2]))*total_rows);      //(N - vertex_lat)/(N-S) * total_rows
-    c := trunc(((Extents[3]-(anOBJVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
-
-    anOBJVertex.z := RAW_array[r,c];
+    aVertex.z := FindElevation(aVertex, total_rows);
   end;
 
   Memo1.Lines.add('Finished burning elevations.');
@@ -351,8 +313,23 @@ begin
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);
+var Comps: Array of TComponent;
+    x: integer;
 begin
   DragAcceptFiles(Handle, True);
+  RAW_array := nil;
+					
+  //load component states from .fs file
+  If FileExists('OBJ2XPMesh.fs') then
+  begin
+    SetLength(Comps, ComponentCount);
+    For x := 0 to ComponentCount-1 do
+    begin
+      Comps[x]:= Components[x];
+    end;
+
+    LoadState(Comps, ComponentCount, ExtractFilePath(Application.ExeName)+'OBJ2XPMesh.fs')
+  end;
 end;
 
 //we will be ignoring the types of primitives for now
@@ -430,10 +407,10 @@ begin
   OpenTextFileDialog1.Options := [];
   If OpenTextFileDialog1.Execute() then
   begin
-    DSFEdit2.Text := OpenTextFileDialog1.FileName;
-    TXTEdit.text := '';
-    OutputDirCombo.text := ExtractFilePath(DSFEdit2.Text);
-    OutputNameCombo.Text := ChangeFileExt(ExtractFileName(DSFEdit2.Text), '')+'.dsf';
+    DSFCombo.Text := OpenTextFileDialog1.FileName;
+    TXTCombo.text := '';
+    OutputDirCombo.text := ExtractFilePath(DSFCombo.Text);
+    OutputNameCombo.Text := ChangeFileExt(ExtractFileName(DSFCombo.Text), '')+'.dsf';
   end;
 end;
 
@@ -447,19 +424,19 @@ begin
   end;
 end;
 
-procedure TForm1.DSFEdit2Change(Sender: TObject);
-begin
-  TXTEdit.text := '';
-end;
 
 procedure TForm1.DSFToolButtonClick(Sender: TObject);
 var log: string;
 begin
-  If TXTEdit.Text <> '' then
-    RunProgramWaiting(DSFToolPathCombo.Text, '', ['-text2dsf','"'+TXTEdit.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], log);
-  If DSFEdit2.text <> '' then
-    RunProgramWaiting(DSFToolPathCombo.Text, '', ['-dsf2text','"'+DSFEdit2.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], log);
-  Memo1.Lines.Add(log);
+  log := '';
+  {If TXTCombo.Text <> '' then
+    RunProgramWaiting(DSFToolPathCombo.Text, '', ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'" > C:\Users\CSI\Desktop\working\output.txt'], log);
+  If DSFCombo.text <> '' then
+    RunProgramWaiting(DSFToolPathCombo.Text, '', ['-dsf2text','"'+DSFCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'" > C:\Users\CSI\Desktop\working\output.txt'], log);
+  ShowMessage(log);
+  Memo3.Lines.Add(log);}
+
+  RunProgramWaiting('ping.exe', 'C:\Windows\System32\', ['google.com','>C:\Users\CSI\Desktop\working\output.txt'], log);
 
   If not ContainsText(DSFToolPathCombo.Items.Text, DSFToolPathCombo.text) then
     DSFToolPathCombo.Items.Add(DSFToolPathCombo.text);
@@ -467,6 +444,10 @@ begin
     OutputDirCombo.Items.Add(OutputDirCombo.text);
   If not ContainsText(OutputNameCombo.Items.Text, OutputNameCombo.text) then
     OutputNameCombo.Items.Add(OutputNameCombo.text);
+  If not ContainsText(TXTCombo.Items.Text, TXTCombo.text) then
+    TXTCombo.Items.Add(TXTCombo.text);
+  If not ContainsText(DSFCombo.Items.Text, DSFCombo.text) then
+    DSFCombo.Items.Add(DSFCombo.text);
 end;
 
 function TForm1.Get_PatchVertex(CurrentLine: string): TPATCH_VERTEX;
@@ -487,18 +468,8 @@ begin
 
   result.primitive_id := prim_count;
 
-  //northern most vertex
-  If result.lat > Extents[1] then
-    Extents[1] := result.lat;
-  //southern most vertex
-  If result.lat < Extents[2] then
-    Extents[2] := result.lat;
-  //western most vertex
-  If result.long < Extents[3] then
-    Extents[3] := result.long;
-  //eastern most vertex
-  If result.long > Extents[4] then
-    Extents[4] := result.long;
+  SetExtents(result);  //determine extents of mesh coverage
+								 
 
 //  Memo1.Lines.Add('Adding VERTEX - ID: '+IntToStr(result.id)+#9' Long: '+FloatToStrF(result.long)+#9' Lat: '+FloatToStrF(result.lat)+#9#9' Height: '+IntToStr(result.height)+#9' X: '+FloatToStrF(result.x)+#9' Z: '+FloatToStrF(result.z)+#9' Parent: '+IntToStr(result.primitive_id))
 end;
@@ -520,6 +491,14 @@ var DSF_SL, Combined_OBJ_SL, Land_OBJ_SL, Sea_OBJ_SL: TStringList;
 
 begin
 
+//N
+  Extents[1]:= -999*100000;
+  //S
+  Extents[2]:= 999*100000;
+  //W
+  Extents[3]:= 999*100000;
+  //E
+  Extents[4]:= -999*100000;
   If DimXEdit.Text <> '' then begin
     If ElevationEdit.Text = '' then
     begin
@@ -564,7 +543,7 @@ begin
 
 end;
 
-procedure TForm1.OutputDirEditExit(Sender: TObject);
+procedure TForm1.OutputDirComboExit(Sender: TObject);
 begin
   With OutputDirCombo do
   begin
@@ -582,12 +561,13 @@ end;
 
 
 procedure TForm1.OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
-var v,x,y,z, lat,lon, v2,v3: integer;
+var v,x,y,z, lat,lon,height, v2,v3, total_rows: integer;
     aPatchVertex: TPATCH_VERTEX;
-    CurrentLine, value, IDX, vert: string;
+    CurrentLine, value, IDX, vert, elevation: string;
     Land_Face_List, Sea_Face_List, IDX_List: TList<string>;
     Water, Land: TObjectList<TStringList>;
     aGroup: TStringList;
+    aVertex: TPATCH_Vertex;					   
 
 begin
 
@@ -601,7 +581,7 @@ begin
 
   try
     {delete all references to land and sea collision meshes in DSF.txt file}
-    Memo2.Lines.Add('Removing original mesh.');
+    Memo2.Lines.Add('Removing original mesh...');
     x:= DSF_SL.count-1;
     While x > 0 do
     begin
@@ -609,16 +589,23 @@ begin
         DSF_SL.Delete(x);
       dec(x);
     end;
+    Memo2.Lines.Add('Finished removing original mesh.');
 
     ////////////////COMBINED WAVEFRONT OBJ//////////////////////////
     {Collect Vertices}
     x := 0;
     lon := 1;
-    If RadioGroup1.ItemIndex = 0 then      //This depends on whether OBJ orientation is XYZ or XZY
-      lat := 2                             //location in the line where will be looking for the longtitude = 3rd Column.
+    If RadioGroup1.ItemIndex = 0 then     //This depends on whether OBJ orientation is XYZ or XZY
+    begin
+      lat := 2;                           //location in the line where will be looking for the longtitude = 3rd Column.
+      height := 3;
+    end
     else
+    begin
       lat := 3;                            //location in the line where will be looking for the longtitude = 4th Column.
-
+      height := 2;
+    end;
+	
     If OBJ_SL.Count = 0 then
     begin
       MessageDlg('File is empty!', mtError, mbOkCancel, 0, mbOk);
@@ -640,12 +627,19 @@ begin
       If MessageDlg('The orientation of this OBJ appears to be different from what was selected. Would you like to switch?', mtWarning, mbYesNo, 0) = mrYes then
       begin
         If lat = 2 then
-          lat := 3            //change to 4th column
+        begin
+          lat := 3;            //change to 4th column
+          height := 2;
+        end
         else
+        begin
           lat :=2;            //change to 3rd column
+          height := 3;
+        end;
       end;
     end;
 
+    Memo2.Lines.Add('Collecting all verts...');
     repeat                                           //collect all verts
       If ContainsText(OBJ_SL.Strings[x], 'v ') then
       begin
@@ -655,12 +649,14 @@ begin
 
         aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]));
         aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]));
+        aPatchVertex.height := StrToInt(trim(CurrentLine.Split(Delimiters)[height]));
         If lat = 3 then
           aPatchVertex.lat := -aPatchVertex.lat;
         VertexList.Add(aPatchVertex);
       end;
       inc(x)
     until x >= OBJ_SL.count-1;    //until end of file
+    Memo2.Lines.Add('Finished collecting verts.');
 
 
     ////////////////////COLLECT INDEXES IF THIS IS AN XP OBJ/////////////////
@@ -699,6 +695,7 @@ begin
       end;
     end;
 
+    Memo2.Lines.Add('Collecting faces...');										   
     For x := 0 to OBJ_SL.Count-1 do
     begin
       If ContainsText(OBJ_SL.Strings[x],'Water') then
@@ -724,6 +721,7 @@ begin
 
 
     end;
+    Memo2.Lines.Add('Finished collecting faces.');												  
     {x := 0;
     repeat
       inc(x);
@@ -763,13 +761,31 @@ begin
     until ((ContainsText(OBJ_SL.Strings[x], 'g ')) or (x >= OBJ_SL.count-1));    //until end of group or end of file   }
     /////////////////////
 
+    /// {Hard-code elevations into vertex depending on elevation source}
+    //source = RASTER RAW, we will set the elevations for all verts from the RASTER but later we will only use the elevations for those in water
+    If ElevationSourceRadioGroup.ItemIndex = 0 then
+    begin
+      If RAW_Array = nil then
+      begin
+        Memo2.Lines.add('Reading elevations from RAW...');
+        ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', total_rows);
+        Memo2.Lines.Add('Finished reading elevations.');
+      end;
 
-    {Begin insertion of patches and primitives}
+      For aVertex in VertexList do
+        SetExtents(aVertex);
+
+      For aVertex in  VertexList do
+        aVertex.height := FindElevation(TOBJ_Vertex.Create(aVertex), total_rows);
+      Memo2.Lines.add('Finished applying elevations to verts.');
+    end;
+
+	{Begin insertion of patches and primitives}
 
     //find insertion point for edits
     x := DSF_SL.IndexOf('RASTER_DEF bathymetry')+1;
 
-    Memo2.Lines.Add('Inserting edited mesh.');
+    Memo2.Lines.Add('Inserting edited mesh...');
 
 
     ///////////////////////////USE FACE VERTEX ORDERS FOR WAVEFRONT OBJ///////////////////////
@@ -798,7 +814,9 @@ begin
           MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
           exit;
         end;
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+{'-32768.000000000'}'0'{FloatToStrF(VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9)}+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+        {height will always be sourced from OBJ for water}
+
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
         inc(x);
       end;
       DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -824,7 +842,14 @@ begin
           MessageDlg('Found a land face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
           exit;
         end;
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
+
+        {height for land can be sourced directly from the OBJ and stored in the DSF or ignored in the DSF and pulled from the raster RAW in XP11 at runtime}
+        If ElevationSourceRadioGroup.ItemIndex = 0 then
+          elevation := '-32768.000000000'                                                //source = RASTER RAW, set the height value to be ignored
+        else
+          elevation := FloatToStrF(VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9);  //source = OBJ, set the height value from the OBJ
+
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+elevation+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
         inc(x);
       end;
       DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -920,6 +945,8 @@ begin
     end;
    }
     //end single patch
+
+    Memo2.Lines.Add('Finished inserting edited mesh.');
     If DimXEdit.Text <> '' then
     begin
       x := DSF_SL.Count-1;
@@ -928,10 +955,11 @@ begin
       until ContainsText(DSF_SL.Strings[x], 'sea_level.raw');  //find penultimate line in file
       {edit last 2 RASTER_DATA lines}
       DSF_SL.Strings[x-1] := 'RASTER_DATA version=1 bpp=2 flags=5 width='+DimXEdit.text+' height='+DimYEdit.text+' scale='+ScaleEdit.text+' offset=0.000000 '+ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw';
-      If LandasSeaCheckBox.Checked then
-        DSF_SL.Strings[x] := {DSF_SL.Strings[x-1]}''
-      else
-        DSF_SL.Strings[x] := 'RASTER_DATA version=1 bpp=2 flags=1 width=256 height=256 scale=1.000000 offset=0.000000 '+SeaLevelEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.sea_level.raw'
+      DSF_SL.Strings[x] := 'RASTER_DATA version=1 bpp=2 flags=1 width=256 height=256 scale=1.000000 offset=0.000000 '+SeaLevelEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.sea_level.raw'
+//      If LandasSeaCheckBox.Checked then
+//        DSF_SL.Strings[x] := DSF_SL.Strings[x-1]
+//      else
+//        DSF_SL.Strings[x] := 'RASTER_DATA version=1 bpp=2 flags=1 width=256 height=256 scale=1.000000 offset=0.000000 '+SeaLevelEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.sea_level.raw'
     end;
 
 
@@ -941,7 +969,7 @@ begin
       DSF_SL.Insert(x, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards');
     end;
 
-    Memo2.Lines.Add('Saving new DSF.');
+    Memo2.Lines.Add('Saving new DSF...');
     DSF_SL.SaveToFile(StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
   finally
     aPatchVertex.Free;
@@ -953,13 +981,6 @@ begin
 end;
 
 
-procedure TForm1.LandasSeaCheckBoxClick(Sender: TObject);
-begin
-  If LandasSeaCheckBox.Checked then
-    SeaLevelEdit.Enabled := false
-  else
-    SeaLevelEdit.Enabled := true;
-end;
 
 procedure TForm1.CombinedOBJButtonClick(Sender: TObject);
 begin
@@ -1130,16 +1151,17 @@ begin
   OpenTextFileDialog1.Options := [];
   If OpenTextFileDialog1.Execute() then
   begin
-    TXTEdit.Text := OpenTextFileDialog1.FileName;
-    DSFEdit2.text := '';
-    OutputDirCombo.text := ExtractFilePath(TXTEdit.Text);
-    OutputNameCombo.Text := ChangeFileExt(ExtractFileName(TXTEdit.Text), '')+'.dsf';
+    TXTCombo.Text := OpenTextFileDialog1.FileName;
+    DSFCombo.text := '';
+    OutputDirCombo.text := ExtractFilePath(TXTCombo.Text);
+    OutputNameCombo.Text := ChangeFileExt(ExtractFileName(TXTCombo.Text), '')+'.dsf';
   end;
 end;
 
-procedure TForm1.TXTEditChange(Sender: TObject);
+
+procedure TForm1.TXTComboChange(Sender: TObject);
 begin
-  DSFEdit2.text := '';
+  DSFCombo.text := '';
 end;
 
 procedure TForm1.TriangleFan(prim_id: integer);
@@ -1291,15 +1313,15 @@ begin
       // Extracts the extension part of path like [.jpg, .png, .txt]
       if (extension = '.txt') then
       begin
-        TXTEdit.Text := path;
-        DSFEdit2.Text := '';
+        TXTCombo.Text := path;
+        DSFCombo.Text := '';
         OutputDirCombo.text := ExtractFilePath(path);
         OutputNameCombo.Text := ChangeFileExt(ExtractFileName(path), '')+'.dsf';
       end
       else if (extension = '.dsf') then
       begin
-        DSFEdit2.Text := path;
-        TXTEdit.Text := '';
+        DSFCombo.Text := path;
+        TXTCombo.Text := '';
         OutputDirCombo.text := ExtractFilePath(path);
         OutputNameCombo.Text := ChangeFileExt(ExtractFileName(path), '')+'.txt';
       end
@@ -1329,12 +1351,71 @@ begin
   SetLength(Comps, ComponentCount);
   For x := 0 to ComponentCount-1 do
   begin
-    Comps[x]:= Components[x];
+    Comps[x]:= Components[x];		
   end;
+	
 
-  SaveState(Comps, ComponentCount, ExtractFilePath(Application.ExeName)+'OBJ2XPMesh.fs');
+  SaveState(Comps, ComponentCount, ExtractFilePath(Application.ExeName)+'OBJ2XPMesh.fs');				 
 end;
 
+procedure TForm1.ReadElevations(FileName: string; out rows_out: integer);
+var FS: TFileStream;
+    r,c: integer;
+    d: word;
+begin
+			
+
+  FS:= TFileStream.Create(FileName, fmopenread + fmShareDenyNone{ or fmShareDenyWrite});
+  rows_out := trunc(sqrt(FS.Size/8)*2);  //total_rows=total_columns
+
+  try
+    FS.Position:=0;
+    SetLength(RAW_Array, rows_out+1, rows_out+1);
+
+    For r := rows_out downto 1 do
+    begin
+      For c := 1 to rows_out do
+      begin
+        If FS.Read(d, sizeof(d)) > 0 then
+        begin
+          RAW_Array[r,c] := d;
+        end;
+      end;
+    end;
+
+  finally
+    FS.Free;
+  end;
+end;
+
+function TForm1.FindElevation(aVertex: TOBJ_Vertex; total_rows: integer): word;
+var r,c: integer;
+begin
+//    Find XY position as fraction of extents
+//    Determine row and column position based on fraction of total rows/columns
+
+  //X and Y below may have been incorrectly exchanged
+  r := trunc(((Extents[1]-(aVertex.Y))/(Extents[1]-Extents[2]))*total_rows);      //(N - vertex_lat)/(N-S) * total_rows
+  c := trunc(((Extents[3]-(aVertex.X))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
+
+  result := RAW_array[r,c];
+end;
+
+procedure TForm1.SetExtents(aPatchVertex: TPATCH_VERTEX);
+begin
+    //northern most vertex
+  If aPatchVertex.lat > Extents[1] then
+    Extents[1] := aPatchVertex.lat;
+  //southern most vertex
+  If aPatchVertex.lat < Extents[2] then
+    Extents[2] := aPatchVertex.lat;
+  //western most vertex
+  If aPatchVertex.long < Extents[3] then
+    Extents[3] := aPatchVertex.long;
+  //eastern most vertex
+  If aPatchVertex.long > Extents[4] then
+    Extents[4] := aPatchVertex.long;
+end;
 
 end.
 

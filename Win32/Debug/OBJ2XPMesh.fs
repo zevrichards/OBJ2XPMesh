@@ -1,6 +1,5 @@
 ElevationCheckBox=-1
 CombinedOBJCheckBox=-1
-LandasSeaCheckBox=-1
 RunDSFToolCheckBox=0
 OutputDirCombo=2
 OutputDirCombo.items=;C:\Users\CSI\Desktop\working\;E:\Program Files (x86)\X-Plane 11\Custom Scenery\RS_Common\Earth nav data\+10-070\

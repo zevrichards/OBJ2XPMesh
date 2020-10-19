@@ -134,9 +134,10 @@ object Form1: TForm1
       end
       object Memo2: TMemo
         Left = 3
-        Top = 216
+        Top = 232
         Width = 828
-        Height = 117
+        Height = 101
+        ScrollBars = ssVertical
         TabOrder = 2
       end
       object OBJ2DSFButton: TButton
@@ -298,16 +299,18 @@ object Form1: TForm1
         Text = '1.000000'
         OnExit = ScaleEditExit
       end
-      object LandasSeaCheckBox: TCheckBox
+      object ElevationSourceRadioGroup: TRadioGroup
         Left = 224
         Top = 188
-        Width = 225
-        Height = 17
-        Caption = 'Use Elevation Raster as Seal Level Raster'
-        Checked = True
-        State = cbChecked
+        Width = 353
+        Height = 38
+        Caption = 'Elevation Source'
+        Columns = 2
+        ItemIndex = 1
+        Items.Strings = (
+          'Raster RAW'
+          'OBJ')
         TabOrder = 19
-        OnClick = LandasSeaCheckBoxClick
       end
     end
     object DSFToolTabSheet: TTabSheet
