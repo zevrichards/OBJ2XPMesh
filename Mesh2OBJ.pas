@@ -102,6 +102,8 @@ type
     DSFCombo: TComboBox;
     TXTCombo: TComboBox;
     ElevationSourceRadioGroup: TRadioGroup;
+    InterpolateCheckBox2: TCheckBox;
+    InterpolateCheckBox1: TCheckBox;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -132,7 +134,7 @@ type
     procedure BeforeDestruction;  override;
     procedure OutputDirComboExit(Sender: TObject);
     procedure TXTComboChange(Sender: TObject);
-	procedure ReadElevations(FileName: string; out rows_out: integer);
+	procedure ReadElevations(FileName: string; out rows_out: integer; interpolate: boolean=true);
     function FindElevation(aVertex: TOBJ_Vertex; total_rows: integer): word;
     procedure SetExtents(aPatchVertex: TPATCH_VERTEX);
   private
@@ -145,7 +147,7 @@ type
 
 var
   Form1: TForm1;
-  prim_count, vert_count: integer;
+  prim_count, vert_count, RAW_rows: integer;
   Land_VertexList, Sea_VertexList, VertexList: TObjectList<TPATCH_VERTEX>;
   PrimitiveList: TObjectList<TPRIMITIVE>;
   OBJ_Vertex_list_Land, OBJ_Vertex_list_Sea: TObjectList<TOBJ_Vertex>;
@@ -260,8 +262,7 @@ begin
 end;
 
 procedure TForm1.BurnElevations;
-var total_rows: integer;
-    aVertex: TOBJ_VERTEX;
+var aVertex: TOBJ_VERTEX;
 	
 begin
 
@@ -275,10 +276,10 @@ begin
     Read height integer from RAW file array
     Change height in vertex             }
 
-  If RAW_Array = nil then
+  If (RAW_Array = nil) or (RAW_rows=0) then
   begin
     Memo1.Lines.add('Reading elevations from RAW...');
-    ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', total_rows);
+    ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, InterpolateCheckbox1.checked);
     Memo1.Lines.Add('Finished reading elevations.');
   end;
 
@@ -288,12 +289,12 @@ begin
 
   For aVertex in  OBJ_Vertex_list_Land do
   begin
-    aVertex.z := FindElevation(aVertex, total_rows);
+    aVertex.z := FindElevation(aVertex, RAW_rows);
   end;
   
   For aVertex in  OBJ_Vertex_list_Sea do
   begin
-    aVertex.z := FindElevation(aVertex, total_rows);
+    aVertex.z := FindElevation(aVertex, RAW_rows);
   end;
 
   Memo1.Lines.add('Finished burning elevations.');
@@ -318,7 +319,8 @@ var Comps: Array of TComponent;
 begin
   DragAcceptFiles(Handle, True);
   RAW_array := nil;
-					
+  RAW_rows := 0;
+
   //load component states from .fs file
   If FileExists('OBJ2XPMesh.fs') then
   begin
@@ -429,14 +431,19 @@ procedure TForm1.DSFToolButtonClick(Sender: TObject);
 var log: string;
 begin
   log := '';
-  {If TXTCombo.Text <> '' then
-    RunProgramWaiting(DSFToolPathCombo.Text, '', ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'" > C:\Users\CSI\Desktop\working\output.txt'], log);
+  If TXTCombo.Text <> '' then
+  begin
+    Memo3.Lines.Add('Running DSFTool -text2dsf "'+TXTCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
+    ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 0, log);
+  end;
   If DSFCombo.text <> '' then
-    RunProgramWaiting(DSFToolPathCombo.Text, '', ['-dsf2text','"'+DSFCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'" > C:\Users\CSI\Desktop\working\output.txt'], log);
-  ShowMessage(log);
-  Memo3.Lines.Add(log);}
+  begin
+    Memo3.Lines.Add('Running DSFTool -dsf2text "'+DSFCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
+    ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-dsf2text','"'+DSFCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 0, log);
+  end;
+  Memo3.Lines.Add('Finished!'+sLineBreak+'Output:'+sLineBreak+'------------------------------------------------------------------');
+  Memo3.Lines.Add(log);
 
-  RunProgramWaiting('ping.exe', 'C:\Windows\System32\', ['google.com'], log);
 
   If not ContainsText(DSFToolPathCombo.Items.Text, DSFToolPathCombo.text) then
     DSFToolPathCombo.Items.Add(DSFToolPathCombo.text);
@@ -561,7 +568,7 @@ end;
 
 
 procedure TForm1.OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
-var v,x,y,z, lat,lon,height, v2,v3, total_rows: integer;
+var v,x,y,z, lat,lon,height, v2,v3: integer;
     aPatchVertex: TPATCH_VERTEX;
     CurrentLine, value, IDX, vert, elevation: string;
     Land_Face_List, Sea_Face_List, IDX_List: TList<string>;
@@ -768,7 +775,7 @@ begin
       If RAW_Array = nil then
       begin
         Memo2.Lines.add('Reading elevations from RAW...');
-        ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', total_rows);
+        ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, InterpolateCheckbox2.checked);
         Memo2.Lines.Add('Finished reading elevations.');
       end;
 
@@ -776,7 +783,7 @@ begin
         SetExtents(aVertex);
 
       For aVertex in  VertexList do
-        aVertex.height := FindElevation(TOBJ_Vertex.Create(aVertex), total_rows);
+        aVertex.height := FindElevation(TOBJ_Vertex.Create(aVertex), RAW_rows);
       Memo2.Lines.add('Finished applying elevations to verts.');
     end;
 
@@ -1358,15 +1365,26 @@ begin
   SaveState(Comps, ComponentCount, ExtractFilePath(Application.ExeName)+'OBJ2XPMesh.fs');				 
 end;
 
-procedure TForm1.ReadElevations(FileName: string; out rows_out: integer);
+procedure TForm1.ReadElevations(FileName: string; out rows_out: integer; interpolate: boolean=true);
+type Tinvalid = record
+  indices: array [0..1] of integer;
+end;
+
 var FS: TFileStream;
-    r,c: integer;
+    r,c, new_Value: integer;
     d: word;
+    invalid_data: TList<Tinvalid>;
+    value: Tinvalid;
+
+const upper: integer = 65534;
+      lower: integer = -32768;
+
 begin
 			
 
   FS:= TFileStream.Create(FileName, fmopenread + fmShareDenyNone{ or fmShareDenyWrite});
   rows_out := trunc(sqrt(FS.Size/8)*2);  //total_rows=total_columns
+  invalid_data := TList<Tinvalid>.create;
 
   try
     FS.Position:=0;
@@ -1379,13 +1397,45 @@ begin
         If FS.Read(d, sizeof(d)) > 0 then
         begin
           RAW_Array[r,c] := d;
+          if (d > upper) or (d < lower) then
+          begin
+            Value.indices[0] := r;
+            value.indices[1] := c;
+            invalid_data.Add(Value);
+          end;
+
         end;
       end;
     end;
 
   finally
     FS.Free;
+
   end;
+
+  If interpolate then
+  begin
+    For value in invalid_data do
+    begin
+      new_value := 0;
+      r := value.indices[0];
+      c := value.indices[1];
+
+      If (RAW_Array[r-1,c] < upper) and (RAW_Array[r-1,c] > lower) then
+        new_value := new_value+RAW_Array[r-1,c];
+      If (RAW_Array[r+1,c] < upper) and (RAW_Array[r+1,c] > lower) then
+        new_value := new_value+RAW_Array[r+1,c];
+      If (RAW_Array[r,c-1] < upper) and (RAW_Array[r,c-1] > lower) then
+        new_value := new_value+RAW_Array[r,c-1];
+      If (RAW_Array[r,c+1] < upper) and (RAW_Array[r,c+1] > lower) then
+        new_value := new_value+RAW_Array[r,c+1];
+      new_value := new_Value div 4;
+
+      Raw_Array[r,c] := new_value;
+    end;
+  end;
+
+  invalid_data.Free;
 end;
 
 function TForm1.FindElevation(aVertex: TOBJ_Vertex; total_rows: integer): word;

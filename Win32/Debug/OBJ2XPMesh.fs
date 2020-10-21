@@ -1,5 +1,7 @@
 ElevationCheckBox=-1
+InterpolateCheckBox1=-1
 CombinedOBJCheckBox=-1
+InterpolateCheckBox2=-1
 RunDSFToolCheckBox=0
 OutputDirCombo=2
 OutputDirCombo.items=;C:\Users\CSI\Desktop\working\;E:\Program Files (x86)\X-Plane 11\Custom Scenery\RS_Common\Earth nav data\+10-070\
@@ -22,7 +24,7 @@ DSFToolButton=-1
 TXTButton=-1
 DSFButton2=-1
 FindDSFToolButton=-1
-DSFTXTEdit=C:\users\CSI\desktop\working\+13-062.txt
+DSFTXTEdit=C:\Users\CSI\Desktop\working\+13-062_edited.txt
 CombinedOBJEdit=C:\users\CSI\desktop\working\_13-062_TVSA.obj
 DSF2Edit=C:\users\CSI\desktop\working\+13-062.txt
 LandOBJEdit=C:\users\CSI\desktop\working\+13-062_TVSA.obj
