@@ -26,10 +26,14 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = DSFToolTabSheet
+    ActivePage = OBJ2DSFPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object DSFButton: TButton
         Left = 3
         Top = 18

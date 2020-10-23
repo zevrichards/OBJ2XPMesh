@@ -148,7 +148,7 @@ type
 var
   Form1: TForm1;
   prim_count, vert_count, RAW_rows: integer;
-  Land_VertexList, Sea_VertexList, VertexList: TObjectList<TPATCH_VERTEX>;
+  Total_VertexList, Land_VertexList, Sea_VertexList, VertexList: TObjectList<TPATCH_VERTEX>;
   PrimitiveList: TObjectList<TPRIMITIVE>;
   OBJ_Vertex_list_Land, OBJ_Vertex_list_Sea: TObjectList<TOBJ_Vertex>;
   OBJ_Face_List: TObjectList<TOBJ_Face>;
@@ -434,12 +434,12 @@ begin
   If TXTCombo.Text <> '' then
   begin
     Memo3.Lines.Add('Running DSFTool -text2dsf "'+TXTCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
-    ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 0, log);
+    ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 1, log);
   end;
   If DSFCombo.text <> '' then
   begin
     Memo3.Lines.Add('Running DSFTool -dsf2text "'+DSFCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
-    ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-dsf2text','"'+DSFCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 0, log);
+    ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-dsf2text','"'+DSFCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 1, log);
   end;
   Memo3.Lines.Add('Finished!'+sLineBreak+'Output:'+sLineBreak+'------------------------------------------------------------------');
   Memo3.Lines.Add(log);
@@ -574,12 +574,15 @@ var v,x,y,z, lat,lon,height, v2,v3: integer;
     Land_Face_List, Sea_Face_List, IDX_List: TList<string>;
     Water, Land: TObjectList<TStringList>;
     aGroup: TStringList;
-    aVertex: TPATCH_Vertex;					   
+    aVertex, anotherVertex: TPATCH_Vertex;
+    aVertexList: TObjectList<TPATCH_VERTEX>;
 
 begin
 
 
-  VertexList := TObjectList<TPATCH_VERTEX>.create;
+  Sea_VertexList := TObjectList<TPATCH_VERTEX>.create;
+  Land_VertexList := TObjectList<TPATCH_VERTEX>.create;
+  Total_VertexList := TObjectList<TPATCH_VERTEX>.create;
   Land_Face_List:= TList<string>.create;
   Sea_Face_List:= TList<string>.create;
   IDX_List := TList<string>.create;
@@ -600,7 +603,7 @@ begin
 
     ////////////////COMBINED WAVEFRONT OBJ//////////////////////////
     {Collect Vertices}
-    x := 0;
+
     lon := 1;
     If RadioGroup1.ItemIndex = 0 then     //This depends on whether OBJ orientation is XYZ or XZY
     begin
@@ -625,6 +628,72 @@ begin
       exit;
     end;
 
+    //begin collecting verts
+    v := 1;
+    Memo2.Lines.Add('Collecting all verts...');
+    For x := 0 to OBJ_SL.Count-1 do
+    begin
+      If ContainsText(OBJ_SL.Strings[x],'Water') then
+        aVertexList := Sea_VertexList;
+
+      If ContainsText(OBJ_SL.Strings[x],'Land') then
+        aVertexList := Land_VertexList;
+
+      If ContainsText(OBJ_SL.Strings[x], 'v ') then
+      begin
+        CurrentLine := OBJ_SL.Strings[x];
+
+        aPatchVertex := TPATCH_VERTEX.create;
+
+        aPatchVertex.id := v;
+        aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]));
+        aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]));
+        If ElevationSourceRadioGroup.ItemIndex = 0 then
+          aPatchVertex.height := -32768                                                    //ignore OBJ elevations if we are going to be using the RASTER RAW as a source
+        else
+          aPatchVertex.height := StrToInt(trim(CurrentLine.Split(Delimiters)[height]));    //This value will be non-zero if the OBJ had heights burned in.
+        If lat = 3 then
+          aPatchVertex.lat := -aPatchVertex.lat;
+        aVertexList.Add(aPatchVertex);
+        inc(v);
+      end;
+    end;
+    Memo2.Lines.Add('Finished collecting verts.');
+
+    //Set heights of all water vertices from RASTER RAW if we are using it as a source.
+    If ElevationSourceRadioGroup.ItemIndex = 0 then
+    begin
+      If RAW_Array = nil then
+      begin
+        Memo2.Lines.add('Reading elevations from RAW...');
+        ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, InterpolateCheckbox2.checked);
+        Memo2.Lines.Add('Finished reading elevations.');
+      end;
+
+      For aVertex in Sea_VertexList do
+        aVertex.height := FindElevation(TOBJ_Vertex.Create(aVertex), RAW_rows);
+      Memo2.Lines.add('Finished applying elevations to water verts.');
+    end;
+
+    //Match coastal land vertices to their water conterparts.
+    x:=0;
+    Memo2.Lines.Add('Matching elevations of coastal land verts to water verts...');
+    For aVertex in Land_VertexList do
+    begin
+      For anotherVertex in Sea_VertexList do
+      begin
+        If (Round(aVertex.long) = Round(anotherVertex.long)) and (Round(aVertex.lat) = Round(anotherVertex.lat)) then
+        begin
+          aVertex.height := anotherVertex.height;
+          inc(x,2);
+          break;
+        end;
+      end;
+    end;
+    Memo2.Lines.Add('Matched '+IntToStr(x)+' vertices. Finished matching elevations.');
+
+
+    {
     repeat
       inc(x);
     until ContainsText(OBJ_SL.Strings[x],'v ');   //search for first vertex
@@ -663,7 +732,7 @@ begin
       end;
       inc(x)
     until x >= OBJ_SL.count-1;    //until end of file
-    Memo2.Lines.Add('Finished collecting verts.');
+    Memo2.Lines.Add('Finished collecting verts.');   }
 
 
     ////////////////////COLLECT INDEXES IF THIS IS AN XP OBJ/////////////////
@@ -728,7 +797,8 @@ begin
 
 
     end;
-    Memo2.Lines.Add('Finished collecting faces.');												  
+    Memo2.Lines.Add('Finished collecting faces.');
+
     {x := 0;
     repeat
       inc(x);
@@ -768,24 +838,11 @@ begin
     until ((ContainsText(OBJ_SL.Strings[x], 'g ')) or (x >= OBJ_SL.count-1));    //until end of group or end of file   }
     /////////////////////
 
-    /// {Hard-code elevations into vertex depending on elevation source}
-    //source = RASTER RAW, we will set the elevations for all verts from the RASTER but later we will only use the elevations for those in water
-    If ElevationSourceRadioGroup.ItemIndex = 0 then
-    begin
-      If RAW_Array = nil then
-      begin
-        Memo2.Lines.add('Reading elevations from RAW...');
-        ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, InterpolateCheckbox2.checked);
-        Memo2.Lines.Add('Finished reading elevations.');
-      end;
-
-      For aVertex in VertexList do
+    {Combine Vertex Lists and find the extent of their coverage}
+    Total_VertexList.addrange(Land_VertexList);
+    Total_VertexList.addrange(Sea_VertexList);
+    For aVertex in Total_VertexList do
         SetExtents(aVertex);
-
-      For aVertex in  VertexList do
-        aVertex.height := FindElevation(TOBJ_Vertex.Create(aVertex), RAW_rows);
-      Memo2.Lines.add('Finished applying elevations to verts.');
-    end;
 
 	{Begin insertion of patches and primitives}
 
@@ -816,14 +873,20 @@ begin
 //      For v := 0 to aGroup.count-1 do
       begin
         Vert:= aGroup[v];
-        If StrToInt(Vert) > VertexList.count then
+        If StrToInt(Vert) > Total_VertexList.count then
         begin
           MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
           exit;
         end;
-        {height will always be sourced from OBJ for water}
 
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+        For aVertex in Total_VertexList do
+        begin
+          If aVertex.id = StrToInt(vert) then
+            break;
+        end;
+
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+//        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(Sea_VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(Sea_VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(Sea_VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
         inc(x);
       end;
       DSF_SL.Insert(x,'END_PRIMITIVE');
@@ -844,19 +907,40 @@ begin
 //      For v := 0 to aGroup.count-1 do
       begin
         Vert:= aGroup[v];
-        If StrToInt(Vert) > VertexList.count then       //total number of verts. Remember that Land vertices are offset from Sea verts by total number of sea verts
+        If StrToInt(Vert) > Total_VertexList.count then       //total number of verts. Remember that Land vertices are offset from Sea verts by total number of sea verts
         begin
           MessageDlg('Found a land face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
           exit;
         end;
 
         {height for land can be sourced directly from the OBJ and stored in the DSF or ignored in the DSF and pulled from the raster RAW in XP11 at runtime}
-        If ElevationSourceRadioGroup.ItemIndex = 0 then
-          elevation := '-32768.000000000'                                                //source = RASTER RAW, set the height value to be ignored
+        {If ElevationSourceRadioGroup.ItemIndex = 0 then
+        begin
+          elevation := '-32768.000000000';                                                //source = RASTER RAW, set the height value to be ignored
+          //Determine whether this vertex has another (water) vertex at the same position.
+          //If so it is a coastal vertex and should share an elevation value
+          //Otherwise it is not and we can set the elevation independently from the RASTER RAW
+          For aVertex in VertexList do
+          begin
+            If (VertexList[StrToInt(vert)-1] <> aVertex) and (Round(VertexList[StrToInt(vert)-1].long) = Round(aVertex.long)) and (Round(VertexList[StrToInt(vert)-1].lat) = Round(aVertex.lat)) then //not the same vertex but matching coords
+            begin
+              elevation := FloatToStrF(aVertex.height, ffFixed, 13, 9);                      //match water vertex elevation
+              break;
+            end;
+          end;
+
+        end
         else
           elevation := FloatToStrF(VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9);  //source = OBJ, set the height value from the OBJ
+        }
+        For aVertex in Total_VertexList do
+        begin
+          If aVertex.id = StrToInt(vert) then
+            break;
+        end;
 
-        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+elevation+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
+
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9){elevation}+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
         inc(x);
       end;
       DSF_SL.Insert(x,'END_PRIMITIVE');

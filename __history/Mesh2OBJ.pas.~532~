@@ -147,7 +147,7 @@ type
 
 var
   Form1: TForm1;
-  prim_count, vert_count: integer;
+  prim_count, vert_count, RAW_rows: integer;
   Land_VertexList, Sea_VertexList, VertexList: TObjectList<TPATCH_VERTEX>;
   PrimitiveList: TObjectList<TPRIMITIVE>;
   OBJ_Vertex_list_Land, OBJ_Vertex_list_Sea: TObjectList<TOBJ_Vertex>;
@@ -262,8 +262,7 @@ begin
 end;
 
 procedure TForm1.BurnElevations;
-var total_rows: integer;
-    aVertex: TOBJ_VERTEX;
+var aVertex: TOBJ_VERTEX;
 	
 begin
 
@@ -277,10 +276,10 @@ begin
     Read height integer from RAW file array
     Change height in vertex             }
 
-  If RAW_Array = nil then
+  If (RAW_Array = nil) or (RAW_rows=0) then
   begin
     Memo1.Lines.add('Reading elevations from RAW...');
-    ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', total_rows, InterpolateCheckbox1.checked);
+    ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, InterpolateCheckbox1.checked);
     Memo1.Lines.Add('Finished reading elevations.');
   end;
 
@@ -290,12 +289,12 @@ begin
 
   For aVertex in  OBJ_Vertex_list_Land do
   begin
-    aVertex.z := FindElevation(aVertex, total_rows);
+    aVertex.z := FindElevation(aVertex, RAW_rows);
   end;
   
   For aVertex in  OBJ_Vertex_list_Sea do
   begin
-    aVertex.z := FindElevation(aVertex, total_rows);
+    aVertex.z := FindElevation(aVertex, RAW_rows);
   end;
 
   Memo1.Lines.add('Finished burning elevations.');
@@ -320,7 +319,8 @@ var Comps: Array of TComponent;
 begin
   DragAcceptFiles(Handle, True);
   RAW_array := nil;
-					
+  RAW_rows := 0;
+
   //load component states from .fs file
   If FileExists('OBJ2XPMesh.fs') then
   begin
@@ -432,9 +432,16 @@ var log: string;
 begin
   log := '';
   If TXTCombo.Text <> '' then
+  begin
+    Memo3.Lines.Add('Running DSFTool -text2dsf "'+TXTCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
     ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 0, log);
+  end;
   If DSFCombo.text <> '' then
+  begin
+    Memo3.Lines.Add('Running DSFTool -dsf2text "'+DSFCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
     ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-dsf2text','"'+DSFCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 0, log);
+  end;
+  Memo3.Lines.Add('Finished!'+sLineBreak+'Output:'+sLineBreak+'------------------------------------------------------------------');
   Memo3.Lines.Add(log);
 
 
@@ -561,7 +568,7 @@ end;
 
 
 procedure TForm1.OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
-var v,x,y,z, lat,lon,height, v2,v3, total_rows: integer;
+var v,x,y,z, lat,lon,height, v2,v3: integer;
     aPatchVertex: TPATCH_VERTEX;
     CurrentLine, value, IDX, vert, elevation: string;
     Land_Face_List, Sea_Face_List, IDX_List: TList<string>;
@@ -572,7 +579,8 @@ var v,x,y,z, lat,lon,height, v2,v3, total_rows: integer;
 begin
 
 
-  VertexList := TObjectList<TPATCH_VERTEX>.create;
+  Sea_VertexList := TObjectList<TPATCH_VERTEX>.create;
+  Land_VertexList := TObjectList<TPATCH_VERTEX>.create;
   Land_Face_List:= TList<string>.create;
   Sea_Face_List:= TList<string>.create;
   IDX_List := TList<string>.create;
@@ -593,7 +601,7 @@ begin
 
     ////////////////COMBINED WAVEFRONT OBJ//////////////////////////
     {Collect Vertices}
-    x := 0;
+
     lon := 1;
     If RadioGroup1.ItemIndex = 0 then     //This depends on whether OBJ orientation is XYZ or XZY
     begin
@@ -618,6 +626,69 @@ begin
       exit;
     end;
 
+    //begin collecting verts
+    Memo2.Lines.Add('Collecting all verts...');
+    For x := 0 to OBJ_SL.Count-1 do
+    begin
+      If ContainsText(OBJ_SL.Strings[x],'Water') then
+        aVertexList := Sea_VertexList;
+
+      If ContainsText(OBJ_SL.Strings[x],'Land') then
+        aVertexList := Land_VertexList;
+
+      If ContainsText(OBJ_SL.Strings[x], 'v ') then
+      begin
+        CurrentLine := OBJ_SL.Strings[x];
+
+        aPatchVertex := TPATCH_VERTEX.create;
+
+        aPatchVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]));
+        aPatchVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]));
+        If ElevationSourceRadioGroup.ItemIndex = 0 then
+          aPatchVertex.height := -32768                                                    //ignore OBJ elevations if we are going to be using the RASTER RAW as a source
+        else
+          aPatchVertex.height := StrToInt(trim(CurrentLine.Split(Delimiters)[height]));    //This value will be non-zero if the OBJ had heights burned in.
+        If
+        If lat = 3 then
+          aPatchVertex.lat := -aPatchVertex.lat;
+        aVertexList.Add(aPatchVertex);
+      end;
+    end;
+    Memo2.Lines.Add('Finished collecting verts.');
+
+    //Set heights of all water vertices from RASTER RAW if we are using it as a source.
+    If ElevationSourceRadioGroup.ItemIndex = 0 then
+    begin
+      If RAW_Array = nil then
+      begin
+        Memo2.Lines.add('Reading elevations from RAW...');
+        ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, InterpolateCheckbox2.checked);
+        Memo2.Lines.Add('Finished reading elevations.');
+      end;
+
+      For aVertex in (Sea_VertexList and Land_VertexList) do
+        SetExtents(aVertex);
+
+      For aVertex in Sea_VertexList do
+        aVertex.height := FindElevation(TOBJ_Vertex.Create(aVertex), RAW_rows);
+      Memo2.Lines.add('Finished applying elevations to water verts.');
+    end;
+
+    //Match coastal land vertices to their water conterparts.
+    Memo2.Lines.Add('Matching elevations of coastal land verts to water verts...');
+    For aVertex in Land_VertexList do
+    begin
+      For anotherVertex in Sea_VertexList do
+      begin
+        If Round(aVertex.long) = Round(anotherVertex.long) and Round(aVertex.lat) = Round(anotherVertex.lat) then
+          aVertex.height := anotherVertex.height;
+        break;
+      end;
+    end;
+    Memo2.Lines.Add('Finjished matching elevations.');
+
+
+    {
     repeat
       inc(x);
     until ContainsText(OBJ_SL.Strings[x],'v ');   //search for first vertex
@@ -656,7 +727,7 @@ begin
       end;
       inc(x)
     until x >= OBJ_SL.count-1;    //until end of file
-    Memo2.Lines.Add('Finished collecting verts.');
+    Memo2.Lines.Add('Finished collecting verts.');   }
 
 
     ////////////////////COLLECT INDEXES IF THIS IS AN XP OBJ/////////////////
@@ -721,7 +792,8 @@ begin
 
 
     end;
-    Memo2.Lines.Add('Finished collecting faces.');												  
+    Memo2.Lines.Add('Finished collecting faces.');
+
     {x := 0;
     repeat
       inc(x);
@@ -761,24 +833,7 @@ begin
     until ((ContainsText(OBJ_SL.Strings[x], 'g ')) or (x >= OBJ_SL.count-1));    //until end of group or end of file   }
     /////////////////////
 
-    /// {Hard-code elevations into vertex depending on elevation source}
-    //source = RASTER RAW, we will set the elevations for all verts from the RASTER but later we will only use the elevations for those in water
-    If ElevationSourceRadioGroup.ItemIndex = 0 then
-    begin
-      If RAW_Array = nil then
-      begin
-        Memo2.Lines.add('Reading elevations from RAW...');
-        ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', total_rows, InterpolateCheckbox2.checked);
-        Memo2.Lines.Add('Finished reading elevations.');
-      end;
 
-      For aVertex in VertexList do
-        SetExtents(aVertex);
-
-      For aVertex in  VertexList do
-        aVertex.height := FindElevation(TOBJ_Vertex.Create(aVertex), total_rows);
-      Memo2.Lines.add('Finished applying elevations to verts.');
-    end;
 
 	{Begin insertion of patches and primitives}
 
@@ -845,7 +900,21 @@ begin
 
         {height for land can be sourced directly from the OBJ and stored in the DSF or ignored in the DSF and pulled from the raster RAW in XP11 at runtime}
         If ElevationSourceRadioGroup.ItemIndex = 0 then
-          elevation := '-32768.000000000'                                                //source = RASTER RAW, set the height value to be ignored
+        begin
+          elevation := '-32768.000000000';                                                //source = RASTER RAW, set the height value to be ignored
+          //Determine whether this vertex has another (water) vertex at the same position.
+          //If so it is a coastal vertex and should share an elevation value
+          //Otherwise it is not and we can set the elevation independently from the RASTER RAW
+          For aVertex in VertexList do
+          begin
+            If (VertexList[StrToInt(vert)-1] <> aVertex) and (Round(VertexList[StrToInt(vert)-1].long) = Round(aVertex.long)) and (Round(VertexList[StrToInt(vert)-1].lat) = Round(aVertex.lat)) then //not the same vertex but matching coords
+            begin
+              elevation := FloatToStrF(aVertex.height, ffFixed, 13, 9);                      //match water vertex elevation
+              break;
+            end;
+          end;
+
+        end
         else
           elevation := FloatToStrF(VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9);  //source = OBJ, set the height value from the OBJ
 
@@ -1364,7 +1433,7 @@ type Tinvalid = record
 end;
 
 var FS: TFileStream;
-    r,c: integer;
+    r,c, new_Value: integer;
     d: word;
     invalid_data: TList<Tinvalid>;
     value: Tinvalid;
@@ -1410,9 +1479,21 @@ begin
   begin
     For value in invalid_data do
     begin
+      new_value := 0;
       r := value.indices[0];
       c := value.indices[1];
-      Raw_Array[r,c] := (RAW_Array[r-1,c]+RAW_Array[r+1,c]+RAW_Array[r,c-1]+RAW_Array[r,c+1]) div 4;
+
+      If (RAW_Array[r-1,c] < upper) and (RAW_Array[r-1,c] > lower) then
+        new_value := new_value+RAW_Array[r-1,c];
+      If (RAW_Array[r+1,c] < upper) and (RAW_Array[r+1,c] > lower) then
+        new_value := new_value+RAW_Array[r+1,c];
+      If (RAW_Array[r,c-1] < upper) and (RAW_Array[r,c-1] > lower) then
+        new_value := new_value+RAW_Array[r,c-1];
+      If (RAW_Array[r,c+1] < upper) and (RAW_Array[r,c+1] > lower) then
+        new_value := new_value+RAW_Array[r,c+1];
+      new_value := new_Value div 4;
+
+      Raw_Array[r,c] := new_value;
     end;
   end;
 

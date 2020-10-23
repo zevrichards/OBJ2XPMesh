@@ -432,9 +432,16 @@ var log: string;
 begin
   log := '';
   If TXTCombo.Text <> '' then
+  begin
+    Memo3.Lines.Add('Running DSFTool -text2dsf "'+TXTCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
     ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 0, log);
+  end;
   If DSFCombo.text <> '' then
+  begin
+    Memo3.Lines.Add('Running DSFTool -dsf2text "'+DSFCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
     ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-dsf2text','"'+DSFCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 0, log);
+  end;
+  Memo3.Lines.Add('Finished!'+sLineBreak+'Output:'+sLineBreak+'------------------------------------------------------------------');
   Memo3.Lines.Add(log);
 
 
@@ -845,7 +852,19 @@ begin
 
         {height for land can be sourced directly from the OBJ and stored in the DSF or ignored in the DSF and pulled from the raster RAW in XP11 at runtime}
         If ElevationSourceRadioGroup.ItemIndex = 0 then
-          elevation := '-32768.000000000'                                                //source = RASTER RAW, set the height value to be ignored
+        begin
+          //Determine whether this vertex has another (water) vertex at the same position.
+          //If so it is a coastal vertex and should share an elevation value
+          //Otherwise it is not and we can set the elevation independently from the RASTER RAW
+          For aVertex in VertexList do
+          begin
+            If (VertexList[StrToInt(vert)-1] <> aVertex) and (VertexList[StrToInt(vert)-1].long = aVertex.long) and (VertexList[StrToInt(vert)-1].lat = aVertex.lat) then //not the same vertex but matching coords
+              elevation := FloatToStrF(aVertex.height, ffFixed, 13, 9)                      //match water vertex elevation
+            else
+              elevation := '-32768.000000000'                                                //source = RASTER RAW, set the height value to be ignored
+          end;
+
+        end
         else
           elevation := FloatToStrF(VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9);  //source = OBJ, set the height value from the OBJ
 

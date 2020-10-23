@@ -26,10 +26,14 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = DSF2OBJPage
+    ActivePage = OBJ2DSFPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object DSFButton: TButton
         Left = 3
         Top = 18
@@ -74,6 +78,16 @@ object Form1: TForm1
         Enabled = False
         TabOrder = 4
         Text = 'C:\users\CSI\desktop\working\+13-062.txt'
+      end
+      object InterpolateCheckBox1: TCheckBox
+        Left = 3
+        Top = 73
+        Width = 161
+        Height = 17
+        Caption = 'Interpolate for invalid data.'
+        Checked = True
+        State = cbChecked
+        TabOrder = 5
       end
     end
     object OBJ2DSFPage: TTabSheet
@@ -134,9 +148,10 @@ object Form1: TForm1
       end
       object Memo2: TMemo
         Left = 3
-        Top = 216
+        Top = 232
         Width = 828
-        Height = 117
+        Height = 101
+        ScrollBars = ssVertical
         TabOrder = 2
       end
       object OBJ2DSFButton: TButton
@@ -298,16 +313,28 @@ object Form1: TForm1
         Text = '1.000000'
         OnExit = ScaleEditExit
       end
-      object LandasSeaCheckBox: TCheckBox
+      object ElevationSourceRadioGroup: TRadioGroup
         Left = 224
         Top = 188
-        Width = 225
+        Width = 353
+        Height = 38
+        Caption = 'Elevation Source'
+        Columns = 2
+        ItemIndex = 0
+        Items.Strings = (
+          'Raster RAW'
+          'OBJ')
+        TabOrder = 19
+      end
+      object InterpolateCheckBox2: TCheckBox
+        Left = 592
+        Top = 204
+        Width = 161
         Height = 17
-        Caption = 'Use Elevation Raster as Seal Level Raster'
+        Caption = 'Interpolate for invalid data.'
         Checked = True
         State = cbChecked
-        TabOrder = 19
-        OnClick = LandasSeaCheckBoxClick
+        TabOrder = 20
       end
     end
     object DSFToolTabSheet: TTabSheet
@@ -329,9 +356,10 @@ object Form1: TForm1
       end
       object Memo3: TMemo
         Left = 3
-        Top = 168
+        Top = 192
         Width = 827
-        Height = 146
+        Height = 122
+        ScrollBars = ssVertical
         TabOrder = 0
       end
       object DSFToolButton: TButton

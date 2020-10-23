@@ -75,6 +75,16 @@ object Form1: TForm1
         TabOrder = 4
         Text = 'C:\users\CSI\desktop\working\+13-062.txt'
       end
+      object InterpolateCheckBox1: TCheckBox
+        Left = 3
+        Top = 73
+        Width = 161
+        Height = 17
+        Caption = 'Interpolate for invalid data.'
+        Checked = True
+        State = cbChecked
+        TabOrder = 5
+      end
     end
     object OBJ2DSFPage: TTabSheet
       Caption = 'OBJ To DSF'
@@ -306,11 +316,21 @@ object Form1: TForm1
         Height = 38
         Caption = 'Elevation Source'
         Columns = 2
-        ItemIndex = 1
+        ItemIndex = 0
         Items.Strings = (
           'Raster RAW'
           'OBJ')
         TabOrder = 19
+      end
+      object InterpolateCheckBox2: TCheckBox
+        Left = 592
+        Top = 204
+        Width = 161
+        Height = 17
+        Caption = 'Interpolate for invalid data.'
+        Checked = True
+        State = cbChecked
+        TabOrder = 20
       end
     end
     object DSFToolTabSheet: TTabSheet
@@ -332,9 +352,10 @@ object Form1: TForm1
       end
       object Memo3: TMemo
         Left = 3
-        Top = 168
+        Top = 192
         Width = 827
-        Height = 146
+        Height = 122
+        ScrollBars = ssVertical
         TabOrder = 0
       end
       object DSFToolButton: TButton
