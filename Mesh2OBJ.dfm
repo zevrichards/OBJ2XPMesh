@@ -2,7 +2,7 @@ object Form1: TForm1
   Left = 0
   Top = 0
   Caption = 'OBJ 2 XP Mesh'
-  ClientHeight = 411
+  ClientHeight = 421
   ClientWidth = 852
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -26,14 +26,24 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = OBJ2DSFPage
+    ActivePage = DSF2OBJPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
+      object Label9: TLabel
+        Left = 319
+        Top = 75
+        Width = 10
+        Height = 13
+        Caption = 'to'
+      end
+      object Label10: TLabel
+        Left = 170
+        Top = 75
+        Width = 94
+        Height = 13
+        Caption = 'Limits of Valid Data:'
+      end
       object DSFButton: TButton
         Left = 3
         Top = 18
@@ -45,17 +55,17 @@ object Form1: TForm1
       end
       object Memo1: TMemo
         Left = 3
-        Top = 96
+        Top = 120
         Width = 828
-        Height = 233
+        Height = 209
         ScrollBars = ssVertical
         TabOrder = 1
       end
       object Convert2OBJButton: TButton
         Left = 355
-        Top = 339
+        Top = 335
         Width = 121
-        Height = 25
+        Height = 29
         Caption = 'Convert DSF to OBJ'
         TabOrder = 2
         OnClick = Convert2OBJButtonClick
@@ -69,6 +79,7 @@ object Form1: TForm1
         Checked = True
         State = cbChecked
         TabOrder = 3
+        OnClick = ElevationCheckBoxClick
       end
       object DSFTXTEdit: TEdit
         Left = 160
@@ -88,6 +99,32 @@ object Form1: TForm1
         Checked = True
         State = cbChecked
         TabOrder = 5
+      end
+      object UpperEdit: TEdit
+        Left = 270
+        Top = 72
+        Width = 43
+        Height = 21
+        NumbersOnly = True
+        TabOrder = 6
+        Text = '8848'
+      end
+      object LowerEdit: TEdit
+        Left = 338
+        Top = 72
+        Width = 31
+        Height = 21
+        NumbersOnly = True
+        TabOrder = 7
+        Text = '-430'
+      end
+      object AddDetailCheckBox: TCheckBox
+        Left = 3
+        Top = 96
+        Width = 97
+        Height = 17
+        Caption = 'Add Detail'
+        TabOrder = 8
       end
     end
     object OBJ2DSFPage: TTabSheet
@@ -128,6 +165,20 @@ object Form1: TForm1
         Height = 13
         Caption = 'Scale'
       end
+      object Label11: TLabel
+        Left = 735
+        Top = 215
+        Width = 10
+        Height = 13
+        Caption = 'to'
+      end
+      object Label12: TLabel
+        Left = 586
+        Top = 215
+        Width = 94
+        Height = 13
+        Caption = 'Limits of Valid Data:'
+      end
       object CombinedOBJEdit: TEdit
         Left = 319
         Top = 54
@@ -148,9 +199,9 @@ object Form1: TForm1
       end
       object Memo2: TMemo
         Left = 3
-        Top = 232
+        Top = 248
         Width = 828
-        Height = 101
+        Height = 85
         ScrollBars = ssVertical
         TabOrder = 2
       end
@@ -204,7 +255,7 @@ object Form1: TForm1
       end
       object CombinedOBJCheckBox: TCheckBox
         Left = 4
-        Top = 115
+        Top = 102
         Width = 197
         Height = 15
         Caption = 'Sea and Land Combined in single OBJ'
@@ -317,7 +368,7 @@ object Form1: TForm1
         Left = 224
         Top = 188
         Width = 353
-        Height = 38
+        Height = 45
         Caption = 'Elevation Source'
         Columns = 2
         ItemIndex = 0
@@ -325,16 +376,45 @@ object Form1: TForm1
           'Raster RAW'
           'OBJ')
         TabOrder = 19
+        OnClick = ElevationSourceRadioGroupClick
       end
       object InterpolateCheckBox2: TCheckBox
-        Left = 592
-        Top = 204
+        Left = 586
+        Top = 192
         Width = 161
         Height = 17
         Caption = 'Interpolate for invalid data.'
         Checked = True
         State = cbChecked
         TabOrder = 20
+      end
+      object LowerEdit2: TEdit
+        Left = 754
+        Top = 212
+        Width = 31
+        Height = 21
+        NumbersOnly = True
+        TabOrder = 21
+        Text = '-430'
+      end
+      object UpperEdit2: TEdit
+        Left = 686
+        Top = 212
+        Width = 43
+        Height = 21
+        NumbersOnly = True
+        TabOrder = 22
+        Text = '8848'
+      end
+      object MatchCheckBox: TCheckBox
+        Left = 3
+        Top = 122
+        Width = 198
+        Height = 17
+        Caption = 'Match elevations of coastal vertices'
+        Checked = True
+        State = cbChecked
+        TabOrder = 23
       end
     end
     object DSFToolTabSheet: TTabSheet
@@ -444,6 +524,61 @@ object Form1: TForm1
         OnChange = TXTComboChange
       end
     end
+    object MiscTabSheet: TTabSheet
+      Caption = 'Misc'
+      ImageIndex = 3
+      object LoadOBJEdit: TEdit
+        Left = 109
+        Top = 14
+        Width = 511
+        Height = 21
+        Enabled = False
+        TabOrder = 0
+        Text = 'C:\users\CSI\desktop\working\test.obj'
+      end
+      object LoadOBJButton: TButton
+        Left = 3
+        Top = 12
+        Width = 105
+        Height = 25
+        Caption = 'Load OBJ'
+        TabOrder = 1
+        OnClick = LoadOBJButtonClick
+      end
+      object AddDetailButton: TButton
+        Left = 355
+        Top = 326
+        Width = 121
+        Height = 25
+        Caption = 'Add Detail to OBJ'
+        TabOrder = 2
+        OnClick = AddDetailButtonClick
+      end
+      object Memo4: TMemo
+        Left = 3
+        Top = 56
+        Width = 814
+        Height = 257
+        ScrollBars = ssVertical
+        TabOrder = 3
+      end
+    end
+  end
+  object ProgressBar1: TProgressBar
+    Left = 0
+    Top = 399
+    Width = 852
+    Height = 11
+    Align = alBottom
+    TabOrder = 1
+  end
+  object ProgressBar2: TProgressBar
+    Left = 0
+    Top = 410
+    Width = 852
+    Height = 11
+    Align = alBottom
+    TabOrder = 2
   end
   object OpenTextFileDialog1: TOpenTextFileDialog
     Left = 816
