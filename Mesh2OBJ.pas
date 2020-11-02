@@ -393,9 +393,11 @@ begin
       CurrentLine := SL.Strings[x];
       If ContainsText(CurrentLine, 'BEGIN_PATCH') then
       begin
-        aPatch := TPATCH.create(CurrentLine);
-        if aPatch.flag = 1 then //only add those are collision meshes
+        If CurrentLine.Split(Delimiters)[4] = '1' then //only create patches for collision meshes, not overlays. ???Will this create issues for existing overlays?
+        begin
+          aPatch := TPATCH.create(CurrentLine);
           aDSF.children.Add(aPatch);
+        end;
       end;
 
 
@@ -859,8 +861,9 @@ begin
 end;
 
 procedure TForm1.CollectOBJ(OBJ_SL: TStringList);
-var lon,lat,height, v2,v3, x: integer;
+var lon,lat,height, v2,v3, x,g: integer;
     CurrentLine: string;
+    s: TArray<string>;
     aGroup, anotherGroup: TOBJ_Group;
     aFace: TOBJ_Face;
     aVertex, anotherVertex: TVERTEX;
@@ -945,6 +948,15 @@ begin
     If ContainsText(CurrentLine,'g ') then
     begin
       aGroup := TOBJ_Group.create(CurrentLine);
+      s := CurrentLine.Split(OBJ_delims);
+      For g := 0 to high(s) do
+      begin
+        If ContainsText(s[g], 'Mesh') then
+        begin
+          aGroup.ter_def := s[g+1];
+          break;
+        end;
+      end;
       anOBJ.children.Add(aGroup);
     end;
 

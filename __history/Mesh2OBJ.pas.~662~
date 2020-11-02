@@ -1,0 +1,2206 @@
+unit Mesh2OBJ;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtDlgs, Vcl.StdCtrls,
+  System.StrUtils, System.generics.collections, Vcl.ComCtrls, system.Math,
+  Vcl.ExtCtrls, Launch, WinApi.ShellApi, Winsock, RSCommonFunctions;
+
+type TVERTEX = class
+  id: integer;
+  long,lat: real;  //degrees
+  height: single;      //height in meters
+  x,z: real;   //coordinates of the point's normal vector as a fraction (where +X = east, and +Z = south)
+  primitive_id: integer; //parent
+  constructor create(s: string; long, lat, height: integer); overload;
+  constructor create(Vert1, Vert2: TVERTEX); overload;
+  constructor create(Vert1, Vert2: TVERTEX; vert_id: integer); overload;
+end;
+
+type TPRIMITIVE = class
+  id: integer;
+  prim_type: integer; //0 - Triangles;		1 - Triangle Strip; 		2 - Triangle Fan
+  patch_id: integer;
+  children: TObjectList<TVERTEX>;
+  constructor create(s: String);
+end;
+
+type TPATCH = class
+  id: integer;
+  ter_def: integer;   //types listed in DSF file in order starting from 0
+  near_LOD: real;
+  far_LOD: single;
+  flag: single;      //type of mesh: 1 - physics/collision; 2 - overlay
+  num_point_coords: integer;
+  children: TObjectList<TPRIMITIVE>;
+  constructor create(s: String);
+end;
+
+type TDSF = class
+  children: TObjectList<TPATCH>;
+  constructor create;
+end;
+
+//type TVertex = class
+//  x,y,z: real;
+//  constructor Create(aVertex: TVERTEX); override;
+//  constructor Create(s: string); override;
+//end;
+
+type TOBJ_Face = Class
+  v1,v2,v3: integer;
+  Group: string;
+  constructor Create(v1,v2,v3: integer; group: string);
+End;
+
+type TOBJ_Group = class
+  ter_def: string;
+  Faces: TObjectList<TOBJ_Face>;
+  Vertices: TObjectList<TVERTEX>;
+  constructor create(aPatch: TPATCH); overload;
+  constructor create(s: string); overload;
+  function FindVertex(id: integer): TVERTEX; overload;
+  function FindVertex(myVertex: TVERTEX): TVERTEX; overload;
+end;
+
+type TOBJ = class
+  children: TList<TOBJ_Group>;
+  constructor create;
+end;
+
+type TSection = class
+    labelname: string;
+    size: integer;
+    data: Tbytes;
+end;
+
+type
+  TForm1 = class(TForm)
+    OpenTextFileDialog1: TOpenTextFileDialog;
+    SaveDialog1: TSaveDialog;
+    PageControl1: TPageControl;
+    DSF2OBJPage: TTabSheet;
+    DSFButton: TButton;
+    DSFTXTEdit: TEdit;
+    Memo1: TMemo;
+    OBJ2DSFPage: TTabSheet;
+    CombinedOBJEdit: TEdit;
+    CombinedOBJButton: TButton;
+    Memo2: TMemo;
+    Convert2OBJButton: TButton;
+    OBJ2DSFButton: TButton;
+    DSF2Edit: TEdit;
+    DSF2EditButton: TButton;
+    WAVOBJRadioButton: TRadioButton;
+    XPOBJRadioButton: TRadioButton;
+    CombinedOBJCheckBox: TCheckBox;
+    LandOBJButton: TButton;
+    LandOBJEdit: TEdit;
+    SeaOBJButton: TButton;
+    SeaOBJEdit: TEdit;
+    RadioGroup1: TRadioGroup;
+    DimXEdit: TEdit;
+    DimYEdit: TEdit;
+    ElevationEdit: TEdit;
+    SeaLevelEdit: TEdit;
+    Label1: TLabel;
+    Label2: TLabel;
+    Label3: TLabel;
+    Label4: TLabel;
+    ScaleEdit: TEdit;
+    Label5: TLabel;
+    Label6: TLabel;
+    DSFToolTabSheet: TTabSheet;
+    Memo3: TMemo;
+    DSFToolButton: TButton;
+    TXTButton: TButton;
+    DSFButton2: TButton;
+    Label7: TLabel;
+    Label8: TLabel;
+    FindDSFToolButton: TButton;
+    RunDSFToolCheckBox: TCheckBox;
+    ElevationCheckBox: TCheckBox;
+    DSFToolPathCombo: TComboBox;
+    OutputDirCombo: TComboBox;
+    OutputNameCombo: TComboBox;
+    DSFCombo: TComboBox;
+    TXTCombo: TComboBox;
+    ElevationSourceRadioGroup: TRadioGroup;
+    InterpolateCheckBox2: TCheckBox;
+    InterpolateCheckBox1: TCheckBox;
+    UpperEdit: TEdit;
+    LowerEdit: TEdit;
+    Label9: TLabel;
+    Label10: TLabel;
+    LowerEdit2: TEdit;
+    Label11: TLabel;
+    UpperEdit2: TEdit;
+    Label12: TLabel;
+    AddDetailCheckBox: TCheckBox;
+    MiscTabSheet: TTabSheet;
+    LoadOBJEdit: TEdit;
+    LoadOBJButton: TButton;
+    AddDetailButton: TButton;
+    MatchCheckBox: TCheckBox;
+    ProgressBar1: TProgressBar;
+    ProgressBar2: TProgressBar;
+    Memo4: TMemo;
+    procedure ExtractPrimitives;
+    procedure Convert2Triangles;
+    procedure DSFButtonClick(Sender: TObject);
+    procedure Convert2OBJButtonClick(Sender: TObject);
+//    function Get_PatchVertex(CurrentLine: string): TVERTEX;
+//    function Get_Primitive(CurrentLine: string): TPRIMITIVE;
+    procedure Triangles(prim_id: integer);
+    procedure TriangleStrip(prim_id: integer);
+    procedure TriangleFan(prim_id: integer);
+    procedure ExportOBJ(ScaleFactor: integer);
+    procedure CombinedOBJButtonClick(Sender: TObject);
+    procedure OBJ2DSFButtonClick(Sender: TObject);
+    procedure DSF2EditButtonClick(Sender: TObject);
+    procedure DeletePrimitives(DSF_SL: TStringList);
+    procedure OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
+    procedure CollectOBJ(OBJ_SL: TStringList);
+    procedure EditDSF(DSF_SL: TStringList);
+    procedure XPOBJRadioButtonClick(Sender: TObject);
+    procedure WAVOBJRadioButtonClick(Sender: TObject);
+    procedure DimXEditChange(Sender: TObject);
+    procedure ElevationEditChange(Sender: TObject);
+    procedure ScaleEditExit(Sender: TObject);
+    procedure DSFToolButtonClick(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+    procedure Drag_Drop_File(var Msg: TMessage); message WM_DROPFILES;
+    procedure FindDSFToolButtonClick(Sender: TObject);
+    procedure TXTButtonClick(Sender: TObject);
+    procedure DSFButton2Click(Sender: TObject);
+    procedure BurnElevations;
+    procedure BeforeDestruction;  override;
+    procedure OutputDirComboExit(Sender: TObject);
+    procedure TXTComboChange(Sender: TObject);
+	procedure ReadElevations(FileName: string; out rows_out: integer; upper, lower: single; interpolate: boolean=true);
+    function FindElevation(aVertex: TVertex; total_rows: integer): word;
+    procedure SetExtents(aVertex: TVERTEX);
+    procedure ElevationCheckBoxClick(Sender: TObject);
+    procedure ElevationSourceRadioGroupClick(Sender: TObject);
+    procedure AddDetail;
+    procedure AddDetailButtonClick(Sender: TObject);
+    procedure LoadOBJButtonClick(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+
+
+var
+  Form1: TForm1;
+  patch_count, prim_count, vert_count, face_count, RAW_rows: integer;
+  Total_VertexList, Land_VertexList, Sea_VertexList, VertexList: TObjectList<TVERTEX>;
+  PrimitiveList: TObjectList<TPRIMITIVE>;
+  Land_Vertex_list, Sea_Vertex_list: TObjectList<TVertex>;
+  OBJ_Face_List: TObjectList<TOBJ_Face>;
+  aDSF: TDSF;
+  anOBJ: TOBJ;
+  Extents: array [1..4] of real; //N,S,W,E
+  RAW_array: array of array of Word;
+
+const Delimiters: array of char = [' ', #9, '/', '\'];
+      OBJ_delims: array of char = [' ', '_'];
+
+implementation
+
+{$R *.dfm}
+
+{Open DSF.txt file
+Store N S E W coordinates
+Find BEGIN_PATCH 0 //sea mesh
+Store BEGIN_PRIMITIVE //sea faces
+
+repeat
+  Find BEGIN_PATCH * * * 1 * //patches which represent physics/collision mesh
+  repeat
+    Store BEGIN_PRIMITIVEs
+  until END_PATCH
+until EOF
+
+//we will be ignoring the types of primitives for now
+convert all Primitives into mesh triangles
+
+export mesh triangles to OBJ with sea groups and land groups}
+constructor TOBJ.create;
+begin
+  inherited;
+  self.children := TList<TOBJ_Group>.create;
+end;
+
+constructor TDSF.create;
+begin
+  inherited;
+  self.children := TObjectList<TPATCH>.create;
+end;
+
+constructor TOBJ_Group.create(aPatch: TPATCH);
+begin
+  self.ter_def := IntToStr(aPatch.ter_def);
+  self.Faces := TObjectList<TOBJ_Face>.create;
+  self.Vertices := TObjectList<TVERTEX>.create;
+end;
+
+constructor TOBJ_Group.Create(s: string);
+begin
+  self.ter_def := s.Split(OBJ_Delims)[2];
+  self.Faces := TObjectList<TOBJ_Face>.create;
+  self.Vertices := TObjectList<TVERTEX>.create;
+end;
+
+function TOBJ_Group.FindVertex(id: Integer): TVERTEX;
+var aVertex: TVERTEX;
+begin
+  result := nil;
+  For aVertex in self.Vertices do
+  begin
+    If aVertex.id = id then
+    begin
+      result := aVertex;
+      break;
+    end;
+  end;
+end;
+
+function TOBJ_Group.FindVertex(myVertex: TVERTEX): TVERTEX;
+var aVertex: TVERTEX;
+begin
+  result := nil;
+  For aVertex in self.Vertices do
+  begin
+    If (aVertex.lat = myVertex.lat) and (aVertex.long = myVertex.long) and (aVertex.height = myVertex.height) then
+    begin
+      result := aVertex;
+      break;
+    end;
+  end;
+end;
+
+constructor TPATCH.create(s: String);
+begin
+  inc(patch_count);
+
+  self.id := patch_count;
+  self.ter_def := StrToInt(s.Split(Delimiters)[1]);
+  self.near_LOD := StrToFloat(s.Split(Delimiters)[2]);
+  self.far_LOD := StrToFloat(s.Split(Delimiters)[3]);
+  self.flag := StrToInt(s.Split(Delimiters)[4]);
+  self.num_point_coords := StrToInt(s.Split(Delimiters)[5]);
+  self.children := TObjectList<TPRIMITIVE>.create;
+end;
+
+constructor TPRIMITIVE.create(s: string);
+begin
+  inc(prim_count);
+
+  self.id := prim_count;
+  self.prim_type := StrToInt(s.Split(Delimiters)[1]);
+  self.patch_id := patch_count;
+  self.children := TObjectList<TVERTEX>.create;
+end;
+
+constructor TVERTEX.create(s: string; long, lat, height: integer);
+begin
+
+  inc(vert_count);
+
+  self.id:= vert_count;
+  self.long := StrToFloat(s.Split(Delimiters)[long]);
+  self.lat := StrToFloat(s.Split(Delimiters)[lat]);
+  self.height := StrToFloat(s.Split(Delimiters)[height]);
+  If length(s.Split(Delimiters)) > {4}5 then
+  begin
+    self.x := StrToFloat(s.Split(Delimiters)[4]);
+    self.z := StrToFloat(s.Split(Delimiters)[5]);
+  end;
+  self.primitive_id := prim_count;
+end;
+
+constructor TVERTEX.create(Vert1, Vert2: TVERTEX);
+begin
+  inc(vert_count);
+
+  self.id:= vert_count;
+  self.long := (Vert1.long+Vert2.long)/2;
+  self.lat := (Vert1.lat+Vert2.lat)/2;
+  self.height := (Vert1.height+Vert2.height)/2;
+  self.x := Vert1.x;
+  self.z := Vert1.z;
+  self.primitive_id := Vert1.primitive_id
+end;
+
+constructor TVERTEX.create(Vert1, Vert2: TVERTEX; vert_id: integer);
+begin
+  self.id:= vert_id;
+  self.long := (Vert1.long+Vert2.long)/2;
+  self.lat := (Vert1.lat+Vert2.lat)/2;
+  self.height := (Vert1.height+Vert2.height)/2;
+  self.x := Vert1.x;
+  self.z := Vert1.z;
+  self.primitive_id := Vert1.primitive_id
+end;
+
+//constructor TVertex.Create(aVertex: TVERTEX);
+//begin
+//  self.x := aVertex.long;
+//  self.y := aVertex.lat;
+//  self.z := aVertex.height;
+//end;
+
+constructor TOBJ_Face.Create(v1,v2,v3: integer; Group: string);
+begin
+  inc(face_count);
+
+  self.v1 := v1;
+  self.v2 := v2;
+  self.v3 := v3;
+  self.Group := Group;
+end;
+
+procedure TForm1.ExtractPrimitives;
+var SL: TStringList;
+    x: integer;
+    aPatch: TPATCH;
+    aPrimitive: TPRIMITIVE;
+    aVertex: TVERTEX;
+    CurrentLine: string;
+
+begin
+
+  progressbar1.Position := 0;
+
+  Memo1.Lines.Add('Starting Extraction of Primitives...');
+
+  SL := TStringList.Create;
+  try
+//    Open DSF.txt file
+    SL.LoadFromFile(DSFTXTEdit.Text);
+    {PrimitiveList := TObjectList<TPRIMITIVE>.create;
+    Sea_VertexList := TObjectList<TVERTEX>.create;
+    Land_VertexList := TObjectList<TVERTEX>.create;}
+    progressbar1.Max := SL.Count;
+
+    For x := 0 to SL.Count-1 do     //collect patches, their primitives and their vertices
+    begin
+      CurrentLine := SL.Strings[x];
+      If ContainsText(CurrentLine, 'BEGIN_PATCH') then
+      begin
+        aPatch := TPATCH.create(CurrentLine);
+        if aPatch.flag = 1 then //only add those are collision meshes
+          aDSF.children.Add(aPatch);
+      end;
+
+
+      If ContainsText(CurrentLine, 'BEGIN_PRIMITIVE') then
+      begin
+        aPrimitive := TPrimitive.create(CurrentLine);
+        aPatch.children.add(aPrimitive);
+      end;
+
+      If ContainsText(CurrentLine, 'PATCH_VERTEX') then
+      begin
+        aVertex := TVERTEX.create(CurrentLine, 1,2,3);
+        aPrimitive.children.add(aVertex);
+        SetExtents(aVertex);  //determine extents of mesh coverage
+      end;
+    end;
+
+//    Find BEGIN_PATCH
+   {x:= 0;
+
+    While x < SL.Count do
+    begin
+      CurrentLine := SL.Strings[x];
+      If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[length(CurrentLine)-2]='1')) then   //a mesh poly that is used for collision*
+      begin
+
+        repeat
+          inc(x);
+          If ContainsText(SL.Strings[x], 'BEGIN_PRIMITIVE') then
+          begin
+            PrimitiveList.Add(Get_Primitive(SL.Strings[x]));
+            inc(x);
+
+            repeat
+              If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
+              begin
+                If (CurrentLine[13]='0')  then          //check for land or sea patch based on BEGIN_PATCH line
+                  Sea_VertexList.Add(Get_PatchVertex(SL.Strings[x]))
+                else
+                  Land_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
+              end;
+              inc(x);
+            until SL.Strings[x] = 'END_PRIMITIVE';
+
+          end;
+
+        until SL.Strings[x] = 'END_PATCH';
+
+      end;
+
+      inc(x);
+    end; }
+
+//    until EOF
+
+    Memo1.Lines.Add(IntToStr(patch_count)+' Total Patches');
+    Memo1.Lines.Add(IntToStr(prim_count)+' Total Primitives');
+   Memo1.Lines.Add(IntToStr(vert_count)+' Total Vertices');
+
+  finally
+    SL.Free;
+    Memo1.Lines.Add('Done Extracting Primitives.');
+  end;
+end;
+
+procedure TForm1.BurnElevations;
+var aVertex: TVertex;
+    aGroup: TOBJ_Group;
+begin
+
+  {Load Elevation RAW File
+  Find number of rows and columns
+  Determine extents of OBJ
+  Read RAW file into 2D array
+  For every vertex in vertex list
+    Find XY position as fraction of extents, convert to 2D array position
+    Determine row and column position based on fraction of total rows/columns
+    Read height integer from RAW file array
+    Change height in vertex             }
+
+  If (RAW_Array = nil) or (RAW_rows=0) then
+  begin
+    Memo1.Lines.add('Reading elevations from RAW...');
+    ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, 	StrToFloat(UpperEdit.Text), StrToFloat(LowerEdit.Text), InterpolateCheckbox1.checked);
+    Memo1.Lines.Add('Finished reading elevations.');
+  end;
+
+
+  Memo1.Lines.add('Burning elevations into OBJ...');
+//  Memo1.Lines.add('North: '+FloatToStrF(Extents[1], ffFixed, 13, 9)+' South: '+FloatToStrF(Extents[2], ffFixed, 13, 9)+' West: '+FloatToStrF(Extents[3], ffFixed, 13, 9)+' East: '+FloatToStrF(Extents[4], ffFixed, 13, 9));
+
+  {For aVertex in  Land_Vertex_list do
+  begin
+    aVertex.z := FindElevation(aVertex, RAW_rows);
+  end;
+  
+  For aVertex in  Sea_Vertex_list do
+  begin
+    aVertex.z := FindElevation(aVertex, RAW_rows);
+  end;    }
+  for aGroup in anOBJ.children do
+  begin
+    for aVertex in aGroup.vertices do
+      aVertex.height := FindElevation(aVertex, RAW_rows);
+  end;
+
+  Memo1.Lines.add('Finished burning elevations.');
+
+
+end;
+
+
+procedure TForm1.FindDSFToolButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'DSFTool.exe (DSFTool.exe)|DSFTool.exe';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    DSFToolPathCombo.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
+
+procedure TForm1.FormCreate(Sender: TObject);
+var Comps: Array of TComponent;
+    x: integer;
+begin
+  DragAcceptFiles(Handle, True);
+  RAW_array := nil;
+  RAW_rows := 0;
+
+  //load component states from .fs file
+  If FileExists('OBJ2XPMesh.fs') then
+  begin
+    SetLength(Comps, ComponentCount);
+    For x := 0 to ComponentCount-1 do
+    begin
+      Comps[x]:= Components[x];
+    end;
+
+    LoadState(Comps, ComponentCount, ExtractFilePath(Application.ExeName)+'OBJ2XPMesh.fs')
+  end;
+end;
+
+procedure TForm1.LoadOBJButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'OBJ files (*.obj)|*.OBJ';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    LoadOBJEdit.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
+
+//we will be ignoring the types of primitives for now
+//convert all Primitives into mesh triangles
+procedure TForm1.Convert2Triangles;
+var aPrimitive: TPRIMITIVE;
+    aPatch: TPATCH;
+    aGroup: TOBJ_Group;
+    aVertex: TVERTEX;
+    v: integer;
+begin
+  Memo1.Lines.Add('Starting conversion of primitives to trianglulated Mesh...');
+  {Do I need a primitivelist or can i iterate through each patch and its children primitives}
+
+  {For aPrimitive in PrimitiveList do
+  begin
+    Case aPrimitive.prim_type of
+      0:begin
+//          Triangles(aPrimitive.id);
+        end;
+      1:begin
+//          TriangleStrip(aPrimitive.id);
+        end;
+      2:begin
+//          TriangleFan(aPrimitive.id);
+        end;
+      else Memo1.Lines.Add('Incorrect Primitive type. Expected integer 0,1 or 2. Got '+IntToStr(aPrimitive.prim_type))
+    End;
+  end;
+  Memo1.Lines.Add('Done Conversion to Mesh!');}
+
+  For aPatch in aDSF.children do
+  begin
+    aGroup := TOBJ_Group.create(aPatch);
+    anOBJ.children.add(aGroup);
+    For aPrimitive in aPatch.children do
+    begin
+      for aVertex in aPrimitive.children do
+        aGroup.Vertices.Add(aVertex);
+      v := 0;
+
+      Case aPrimitive.prim_type of
+      0:begin  //induvidual
+
+          While v < aPrimitive.children.count do
+           begin
+            //create faces from groups of 3 and add to face list
+            aGroup.Faces.Add(TOBJ_Face.create(aPrimitive.children[v+2].id, aPrimitive.children[v+1].id, aPrimitive.children[v].id, IntToStr(aPatch.ter_def)));
+            inc(v,3);
+           end;
+        end;
+      1:begin //triangle fans
+          While v < aPrimitive.children.count do
+            begin
+              If v+2 < aPrimitive.children.Count then //check to make sure that we still have more verts to read
+                aGroup.Faces.Add(TOBJ_Face.create(aPrimitive.children[v+2].id, aPrimitive.children[v+1].id, aPrimitive.children[v].id, IntToStr(aPatch.ter_def)));       //first in forward order...
+              inc(v,2);
+              If v+1 < aPrimitive.children.Count then //check to make sure that we still have more verts to read
+                aGroup.Faces.Add(TOBJ_Face.create(aPrimitive.children[v+1].id, aPrimitive.children[v-1].id, aPrimitive.children[v].id, IntToStr(aPatch.ter_def)));           //then in backward order to preserve upward facing polygons
+            end;
+        end;
+      2:begin
+//          TriangleFan(aPrimitive.id);
+        end;
+      else Memo1.Lines.Add('Incorrect Primitive type. Expected integer 0,1 or 2. Got '+IntToStr(aPrimitive.prim_type))
+    End;
+    end;
+  end;
+end;
+
+procedure TForm1.Convert2OBJButtonClick(Sender: TObject);
+begin
+
+  progressbar2.Max := 5;
+  progressbar2.Position := 0;
+
+  //N
+  Extents[1]:= -999*100000;
+  //S
+  Extents[2]:= 999*100000;
+  //W
+  Extents[3]:= 999*100000;
+  //E
+  Extents[4]:= -999*100000;
+
+  patch_count := 0;
+  prim_count := 0;
+  vert_count := 0;
+
+  try
+//    Land_Vertex_list := TObjectList<TVertex>.create;
+//    Sea_Vertex_list := TObjectList<TVertex>.create;
+//    OBJ_Face_List := TObjectList<TOBJ_Face>.create;
+    aDSF := TDSF.Create;
+    anOBJ := TOBJ.create;
+    ExtractPrimitives;
+    progressbar2.Position := 1;
+    Convert2Triangles;
+    progressbar2.Position := 2;
+    if AddDetailCheckbox.Checked then
+      AddDetail;
+    progressbar2.Position := 3;
+    If ElevationCheckBox.Checked then
+      BurnElevations;
+    progressbar2.Position := 4;
+    ExportOBJ(100000);
+    progressbar2.Position := 5;
+  finally
+//    Land_Vertex_list.Free;
+//    Sea_Vertex_list.Free;
+//    OBJ_Face_List.Free;
+    aDSF.free;
+    anOBJ.free;
+  end;
+end;
+
+procedure TForm1.DimXEditChange(Sender: TObject);
+begin
+  DimYEdit.Text := DimXEdit.Text;
+  If StrToInt(DimXEdit.text) > 5523 then
+    MessageDlg('DSFTool experiences issues processing elevation RAW files larger than 5523x5523px (approximately 20m/px or lower). Are you sure you want to continue?', mtWarning, mbOkCancel, 0, mbOK)
+end;
+
+procedure TForm1.DSF2EditButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'TXT files (*.txt)|*.TXT';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    DSF2Edit.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
+
+procedure TForm1.DSFButton2Click(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'DSF Files (*.dsf)|*.DSF';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    DSFCombo.Text := OpenTextFileDialog1.FileName;
+    TXTCombo.text := '';
+    OutputDirCombo.text := ExtractFilePath(DSFCombo.Text);
+    OutputNameCombo.Text := ChangeFileExt(ExtractFileName(DSFCombo.Text), '')+'.dsf';
+  end;
+end;
+
+procedure TForm1.DSFButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'TXT files (*.txt)|*.TXT';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    DSFTXTEdit.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
+
+
+procedure TForm1.DSFToolButtonClick(Sender: TObject);
+var log: string;
+begin
+  log := '';
+  If TXTCombo.Text <> '' then
+  begin
+    Memo3.Lines.Add('Running DSFTool -text2dsf "'+TXTCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
+    ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 1, log);
+  end;
+  If DSFCombo.text <> '' then
+  begin
+    Memo3.Lines.Add('Running DSFTool -dsf2text "'+DSFCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
+    ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-dsf2text','"'+DSFCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 1, log);
+  end;
+  Memo3.Lines.Add('Finished!'+sLineBreak+'Output:'+sLineBreak+'------------------------------------------------------------------');
+  Memo3.Lines.Add(log);
+
+
+  If not ContainsText(DSFToolPathCombo.Items.Text, DSFToolPathCombo.text) then
+    DSFToolPathCombo.Items.Add(DSFToolPathCombo.text);
+  If not ContainsText(OutputDirCombo.Items.Text, OutputDirCombo.text) then
+    OutputDirCombo.Items.Add(OutputDirCombo.text);
+  If not ContainsText(OutputNameCombo.Items.Text, OutputNameCombo.text) then
+    OutputNameCombo.Items.Add(OutputNameCombo.text);
+  If not ContainsText(TXTCombo.Items.Text, TXTCombo.text) then
+    TXTCombo.Items.Add(TXTCombo.text);
+  If not ContainsText(DSFCombo.Items.Text, DSFCombo.text) then
+    DSFCombo.Items.Add(DSFCombo.text);
+end;
+
+//function TForm1.Get_PatchVertex(CurrentLine: string): TVERTEX;
+//var value: string;
+//    x,y: integer;
+//
+//begin
+//  inc(vert_count);
+//  result := TVERTEX.Create;
+//  result.id:= vert_count;
+//
+//
+//  result.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[1]));
+//  result.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[2]));
+//  result.height := Trunc(StrToFloat(trim(CurrentLine.Split(Delimiters)[3])));
+//  result.x := StrToFloat(trim(CurrentLine.Split(Delimiters)[4]));
+//  result.z := StrToFloat(trim(CurrentLine.Split(Delimiters)[5]));
+//
+//  result.primitive_id := prim_count;
+//
+//  SetExtents(result);  //determine extents of mesh coverage
+//
+//
+////  Memo1.Lines.Add('Adding VERTEX - ID: '+IntToStr(result.id)+#9' Long: '+FloatToStrF(result.long)+#9' Lat: '+FloatToStrF(result.lat)+#9#9' Height: '+IntToStr(result.height)+#9' X: '+FloatToStrF(result.x)+#9' Z: '+FloatToStrF(result.z)+#9' Parent: '+IntToStr(result.primitive_id))
+//end;
+
+//function TForm1.Get_Primitive(CurrentLine: string): TPRIMITIVE;
+//begin
+//  inc(prim_count);
+//  result := TPRIMITIVE.Create;
+//  result.id := prim_count;
+//
+//  result.prim_type := StrToInt(CurrentLine[Length(CurrentLine)]);
+////    Memo1.Lines.Add('Adding PRIMITIVE - ID: '+IntToStr(result.id)+#9' Type: '+IntToStr(result.prim_type))
+//end;
+
+
+
+procedure TForm1.OBJ2DSFButtonClick(Sender: TObject);
+var DSF_SL, Combined_OBJ_SL, Land_OBJ_SL, Sea_OBJ_SL: TStringList;
+
+begin
+
+  progressbar2.max := 3;
+  progressbar2.Position := 0;
+
+//N
+  Extents[1]:= -999*100000;
+  //S
+  Extents[2]:= 999*100000;
+  //W
+  Extents[3]:= 999*100000;
+  //E
+  Extents[4]:= -999*100000;
+  If DimXEdit.Text <> '' then begin
+    If ElevationEdit.Text = '' then
+    begin
+      MessageDlg('If you are entering new Raster Dimensions, please also enter a path to the elevation raster files.', mtWarning, mbOKCancel, 0, mbOk);
+      exit;
+    end;
+  end;
+
+  If ElevationEdit.Text <> '' then begin
+    If DimXEdit.Text = '' then
+    begin
+      MessageDlg('If you are entering a path to elevation raster files, please also enter new Raster Dimensions.', mtWarning, mbOKCancel, 0, mbOk);
+      exit;
+    end;
+  end;
+
+  try
+
+    DSF_SL := TStringList.Create;
+    Combined_OBJ_SL := TStringList.Create;
+    anOBJ := TOBJ.create;
+    aDSF := TDSF.create;
+
+    DSF_SL.LoadFromFile(DSF2Edit.Text);
+    Combined_OBJ_SL.LoadFromFile(CombinedOBJEdit.Text);
+
+  {Load original DSF.txt
+  Delete ALL instances of patches, primitives and vertices
+
+  construct 1 new land patch
+  Construct count/3 type 0 (triangle) primitives from mesh
+  insert all patch vertices in groups of 3s}
+
+  //  OBJ_Vertex_list := TObjectList<TVertex>.create;
+  //  OBJ_Face_List := TObjectList<TOBJ_Face>.create;
+  //  ExtractPrimitives;
+    DeletePrimitives(DSF_SL);
+    progressbar2.Position := 1;
+    CollectOBJ(Combined_OBJ_SL);
+    progressbar2.Position := 2;
+//    Convert2DSF(anOBJ);
+    EditDSF(DSF_SL);
+    progressbar2.Position := 3;
+
+//    OBJ2DSF(DSF_SL, Combined_OBJ_SL);
+  //  Convert2Triangles;
+  finally
+    DSF_SL.Free;
+    Combined_OBJ_SL.Free;
+    anOBJ.Free;
+    aDSF.Free;
+    MessageBeep(MB_OK);
+    Memo2.Lines.Add('Done!');
+  end;
+
+end;
+
+procedure TForm1.DeletePrimitives(DSF_SL: TStringList);
+var x: integer;
+begin
+    {delete all references to land and sea collision meshes in DSF.txt file}
+    Memo2.Lines.Add('Removing original mesh...');
+    x:= DSF_SL.count-1;
+    While x > 0 do
+    begin
+      If ((ContainsText(DSF_SL.Strings[x], 'PRIMITIVE')) or (ContainsText(DSF_SL.Strings[x], 'PATCH'))) then
+        DSF_SL.Delete(x);
+      dec(x);
+    end;
+    Memo2.Lines.Add('Finished removing original mesh.');
+end;
+
+procedure TForm1.CollectOBJ(OBJ_SL: TStringList);
+var lon,lat,height, v2,v3, x: integer;
+    CurrentLine: string;
+    aGroup, anotherGroup: TOBJ_Group;
+    aFace: TOBJ_Face;
+    aVertex, anotherVertex: TVERTEX;
+
+begin
+
+  progressbar1.Max := OBJ_SL.Count;
+  progressbar1.Position := 0;
+
+  If OBJ_SL.Count = 0 then
+  begin
+    MessageDlg('File is empty!', mtError, mbOkCancel, 0, mbOk);
+    exit;
+  end;
+
+  If not ((ContainsText(OBJ_SL.Text, 'v ')) and (ContainsText(OBJ_SL.Text, 'f '))) then
+  begin
+    MessageDlg('No verts or faces found in file! Is this a valid OBJ?', mtError, mbOkCancel, 0, mbOk);
+    exit;
+  end;
+
+  lon := 1;
+  If RadioGroup1.ItemIndex = 0 then     //This depends on whether OBJ orientation is XYZ or XZY
+  begin
+    lat := 2;                           //location in the line where will be looking for the longtitude = 3rd Column.
+    height := 3;
+  end
+  else
+  begin
+    lat := 3;                            //location in the line where will be looking for the longtitude = 4th Column.
+    height := 2;
+  end;
+
+  If ((ContainsText(OBJ_SL.Text, 'vt ')) and (ContainsText(OBJ_SL.Text, 'vn '))) then
+  begin
+    v2:= 4;
+    v3:= 7;
+  end
+  else
+  begin
+    If ((ContainsText(OBJ_SL.Text, 'vt ')) or (ContainsText(OBJ_SL.Text, 'vn '))) then
+    begin
+      v2:= 3;
+      v3:= 5;
+    end
+    else
+    begin
+      v2:= 2;
+      v3:= 3;
+    end;
+  end;
+
+  //check orientation of model
+  x :=  GetHeaderCommentSize(OBJ_SL, '#');
+  repeat
+      inc(x);
+      progressbar1.Position := progressbar1.Position + 1;;
+  until ContainsText(OBJ_SL.Strings[x],'v ');   //search for first vertex
+  If abs(StrToFloat(trim(OBJ_SL.Strings[x].Split(Delimiters)[lat]))) < 100000 then
+  begin
+    If MessageDlg('The orientation of this OBJ appears to be different from what was selected. Would you like to switch?', mtWarning, mbYesNo, 0) = mrYes then
+    begin
+      If lat = 2 then
+      begin
+        lat := 3;            //change to 4th column
+        height := 2;
+      end
+      else
+      begin
+        lat :=2;            //change to 3rd column
+        height := 3;
+      end;
+    end;
+  end;
+
+
+  //Collect All Groups, their verts and faces.
+  Memo2.Lines.Add('Collecting all groups, verts and faces...');
+  For x := GetHeaderCommentSize(OBJ_SL, '#') to OBJ_SL.Count-1 do
+  begin
+    CurrentLine := OBJ_SL.Strings[x];
+    If ContainsText(CurrentLine,'g ') then
+    begin
+      aGroup := TOBJ_Group.create(CurrentLine);
+      anOBJ.children.Add(aGroup);
+    end;
+
+    If ContainsText(CurrentLine,'v ') then
+    begin
+      aVertex := TVERTEX.create(CurrentLine, lon, lat, height);
+      aGroup.vertices.add(aVertex);
+    end;
+
+    If ContainsText(OBJ_SL.Strings[x], 'f ') then
+    begin
+      aFace := TOBJ_Face.create(StrToInt(CurrentLine.split(Delimiters)[1]), StrToInt(CurrentLine.split(Delimiters)[v2]), StrToInt(CurrentLine.split(Delimiters)[v3]), aGroup.ter_def);
+      aGroup.Faces.add(aFace);
+    end;
+    progressbar1.Position := progressbar1.Position + 1;;
+  end;
+  Memo2.Lines.Add('Finished collecting groups, verts and faces.');
+
+  //Set heights of all water vertices from RASTER RAW if we are using it as a source.
+  If ElevationSourceRadioGroup.ItemIndex = 0 then
+  begin
+    If RAW_Array = nil then
+    begin
+      Memo2.Lines.add('Reading elevations from RAW...');
+      ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, StrToFloat(UpperEdit2.Text), StrToFloat(LowerEdit2.Text), InterpolateCheckbox2.checked);
+      Memo2.Lines.Add('Finished reading elevations.');
+    end;
+
+    For aGroup in anOBJ.children do
+    begin
+      If aGroup.ter_def = '0' then
+      begin
+        For aVertex in aGroup.vertices do
+          aVertex.height := FindElevation(aVertex, RAW_rows);
+      end;
+    end;
+    Memo2.Lines.add('Finished applying elevations to water verts.');
+  end;
+
+  //Match coastal land vertices to their water conterparts.
+  if MatchCheckbox.Checked then
+  begin
+    x:=0;
+    Memo2.Lines.Add('Matching elevations of coastal land verts to water verts...');
+    For aGroup in anOBJ.children do
+    begin
+      If aGroup.ter_def <> '0' then  //land Group
+      begin
+        For aVertex in aGroup.vertices do
+        begin
+          For anotherGroup in anOBJ.children do
+          begin
+            If anotherGroup.ter_def = '0' then  //water
+            begin
+                For anotherVertex in anotherGroup.vertices do
+                begin
+                  If (Round(aVertex.long) = Round(anotherVertex.long)) and (Round(aVertex.lat) = Round(anotherVertex.lat)) then
+                  begin
+                    aVertex.height := anotherVertex.height;
+                    inc(x,2);
+                    break;
+                end;
+              end;
+            end;
+          end;
+        end;
+      end;
+    end;
+    Memo2.Lines.Add('Matched '+IntToStr(x)+' vertices. Finished matching elevations.');
+  end;
+end;
+
+procedure TForm1.EditDSF(DSF_SL: TStringList);
+var aVertex: TVERTEX;
+    aFace: TOBJ_Face;
+    aGroup: TOBJ_Group;
+    x: integer;
+begin
+  {Begin insertion of patches and primitives}
+
+  //find insertion point for edits
+  x := DSF_SL.IndexOf('RASTER_DEF bathymetry')+1;
+
+  Memo2.Lines.Add('Inserting edited mesh...');
+
+
+  For aGroup in anOBJ.children do
+  begin
+    DSF_SL.Insert(x,'BEGIN_PATCH '+aGroup.ter_def+' 0.000000 -1.000000 1 7');
+    inc(x);
+    //begin primitive
+    DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+    inc(x);
+
+    For aFace in aGroup.faces do
+    begin
+      aVertex := aGroup.FindVertex(aFace.v1);
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+      inc(x);
+
+      aVertex := aGroup.FindVertex(aFace.v2);
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+      inc(x);
+
+      aVertex := aGroup.FindVertex(aFace.v3);
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+      inc(x);
+    end;
+
+    DSF_SL.Insert(x,'END_PRIMITIVE');
+    inc(x);
+    DSF_SL.Insert(x,'END_PATCH');
+    inc(x);
+  end;
+
+  Memo2.Lines.Add('Finished inserting edited mesh.');
+  If DimXEdit.Text <> '' then
+  begin
+    x := DSF_SL.Count-1;
+    repeat
+      dec(x)
+    until ContainsText(DSF_SL.Strings[x], 'sea_level.raw');  //find penultimate line in file
+    {edit last 2 RASTER_DATA lines}
+    DSF_SL.Strings[x-1] := 'RASTER_DATA version=1 bpp=2 flags=5 width='+DimXEdit.text+' height='+DimYEdit.text+' scale='+ScaleEdit.text+' offset=0.000000 '+ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw';
+    DSF_SL.Strings[x] := 'RASTER_DATA version=1 bpp=2 flags=1 width=256 height=256 scale=1.000000 offset=0.000000 '+SeaLevelEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.sea_level.raw'
+  end;
+
+
+  If not ContainsText(DSF_SL.text, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards') then
+  begin
+    x := DSF_SL.IndexOf('DSF2TEXT')+2;
+    DSF_SL.Insert(x, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards');
+  end;
+
+  Memo2.Lines.Add('Saving new DSF...');
+  DSF_SL.SaveToFile(StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
+end;
+
+procedure TForm1.OutputDirComboExit(Sender: TObject);
+begin
+  With OutputDirCombo do
+  begin
+    If text[high(text)] <> '\' then
+     text := text + '\';
+  end;
+end;
+
+procedure TForm1.ScaleEditExit(Sender: TObject);
+var x: extended;
+begin
+  If not TryStrToFloat(ScaleEdit.text, x) then
+    MessageDlg('Invalid Scale', mtWarning, mbOkCancel, 0, mbOk)
+end;
+
+
+procedure TForm1.OBJ2DSF(DSF_SL, OBJ_SL: TStringList);
+var v,x,y,z, lat,lon,height, v2,v3: integer;
+    CurrentLine, value, IDX, vert, elevation: string;
+    Land_Face_List, Sea_Face_List, IDX_List: TList<string>;
+    Water, Land: TObjectList<TStringList>;
+    aGroup: TStringList;
+    aVertex, anotherVertex: TVERTEX;
+    aVertexList: TObjectList<TVERTEX>;
+
+begin
+
+
+//  Sea_VertexList := TObjectList<TVERTEX>.create;
+//  Land_VertexList := TObjectList<TVERTEX>.create;
+  Total_VertexList := TObjectList<TVERTEX>.create;
+  Land_Face_List:= TList<string>.create;
+  Sea_Face_List:= TList<string>.create;
+//  IDX_List := TList<string>.create;
+  Water:= TObjectList<TStringList>.create;
+  Land:= TObjectList<TStringList>.create;
+
+  try
+//    {delete all references to land and sea collision meshes in DSF.txt file}
+//    Memo2.Lines.Add('Removing original mesh...');
+//    x:= DSF_SL.count-1;
+//    While x > 0 do
+//    begin
+//      If ((ContainsText(DSF_SL.Strings[x], 'PRIMITIVE')) or (ContainsText(DSF_SL.Strings[x], 'PATCH'))) then
+//        DSF_SL.Delete(x);
+//      dec(x);
+//    end;
+//    Memo2.Lines.Add('Finished removing original mesh.');
+//
+//    ////////////////COMBINED WAVEFRONT OBJ//////////////////////////
+//    {Collect Vertices}
+//
+//    lon := 1;
+//    If RadioGroup1.ItemIndex = 0 then     //This depends on whether OBJ orientation is XYZ or XZY
+//    begin
+//      lat := 2;                           //location in the line where will be looking for the longtitude = 3rd Column.
+//      height := 3;
+//    end
+//    else
+//    begin
+//      lat := 3;                            //location in the line where will be looking for the longtitude = 4th Column.
+//      height := 2;
+//    end;
+//
+//    If OBJ_SL.Count = 0 then
+//    begin
+//      MessageDlg('File is empty!', mtError, mbOkCancel, 0, mbOk);
+//      exit;
+//    end;
+//
+//    If not ((ContainsText(OBJ_SL.Text, 'v ')) and (ContainsText(OBJ_SL.Text, 'f '))) then
+//    begin
+//      MessageDlg('No verts or faces found in file! Is this a valid OBJ?', mtError, mbOkCancel, 0, mbOk);
+//      exit;
+//    end;
+//
+//    //begin collecting verts
+//    v := 1;
+//    Memo2.Lines.Add('Collecting all verts...');
+//    For x := 0 to OBJ_SL.Count-1 do
+//    begin
+//      If ContainsText(OBJ_SL.Strings[x],'Water') then
+//        aVertexList := Sea_VertexList;
+//
+//      If ContainsText(OBJ_SL.Strings[x],'Land') then
+//        aVertexList := Land_VertexList;
+//
+//      If ContainsText(OBJ_SL.Strings[x], 'v ') then
+//      begin
+//        CurrentLine := OBJ_SL.Strings[x];
+//
+//        aVertex := TVertex.create(CurrentLine);
+//
+//        aVertex.id := v;
+//        aVertex.long := StrToFloat(trim(CurrentLine.Split(Delimiters)[lon]));
+//        aVertex.lat := StrToFloat(trim(CurrentLine.Split(Delimiters)[lat]));
+//        If ElevationSourceRadioGroup.ItemIndex = 0 then
+//          aVertex.height := -32768                                                    //ignore OBJ elevations if we are going to be using the RASTER RAW as a source
+//        else
+//          aVertex.height := StrToInt(trim(CurrentLine.Split(Delimiters)[height]));    //This value will be non-zero if the OBJ had heights burned in.
+//        If lat = 3 then
+//          aVertex.lat := -aVertex.lat;
+//        aVertexList.Add(aVertex);
+//        inc(v);
+//      end;
+//    end;
+//    Memo2.Lines.Add('Finished collecting verts.');
+//
+//    //Set heights of all water vertices from RASTER RAW if we are using it as a source.
+//    If ElevationSourceRadioGroup.ItemIndex = 0 then
+//    begin
+//      If RAW_Array = nil then
+//      begin
+//        Memo2.Lines.add('Reading elevations from RAW...');
+//        ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, StrToFloat(UpperEdit2.Text), StrToFloat(LowerEdit2.Text), InterpolateCheckbox2.checked);
+//        Memo2.Lines.Add('Finished reading elevations.');
+//      end;
+//
+//      For aVertex in Sea_VertexList do
+//        aVertex.height := FindElevation(aVertex, RAW_rows);
+//      Memo2.Lines.add('Finished applying elevations to water verts.');
+//    end;
+//
+//    //Match coastal land vertices to their water conterparts.
+//    x:=0;
+//    Memo2.Lines.Add('Matching elevations of coastal land verts to water verts...');
+//    For aVertex in Land_VertexList do
+//    begin
+//      For anotherVertex in Sea_VertexList do
+//      begin
+//        If (Round(aVertex.long) = Round(anotherVertex.long)) and (Round(aVertex.lat) = Round(anotherVertex.lat)) then
+//        begin
+//          aVertex.height := anotherVertex.height;
+//          inc(x,2);
+//          break;
+//        end;
+//      end;
+//    end;
+//    Memo2.Lines.Add('Matched '+IntToStr(x)+' vertices. Finished matching elevations.');
+//
+//
+//
+//
+//
+//    ////////////////////COLLECT INDEXES IF THIS IS AN XP OBJ/////////////////
+////    repeat
+////      inc(x);
+////    until ContainsText(OBJ_SL.Strings[x], 'IDX');
+////    repeat
+////      CurrentLine := OBJ_SL.Strings[x];
+////      IDX_List.AddRange(Copy(CurrentLine.Split(Delimiters),1,10));      //copy everything except the first element to the IDX list. {First element is the string 'IDX'/'IDX10'}
+////      inc(x);
+////    until not ContainsText(CurrentLine, 'IDX');
+//    ///////////////
+//
+//    ///////////////////COLLECT FACES IF THIS IS A WAV OBJ////////////////////
+//    {Check to see if file contains VTs and VNs
+//    if both, face vertices are located at 1 4 and 7
+//    if only one, they are at 1 3 and 5
+//    if none, they are at 1 2 and 3}
+//
+//    If ((ContainsText(OBJ_SL.Text, 'vt ')) and (ContainsText(OBJ_SL.Text, 'vn '))) then
+//    begin
+//      v2:= 4;
+//      v3:= 7;
+//    end
+//    else
+//    begin
+//      If ((ContainsText(OBJ_SL.Text, 'vt ')) or (ContainsText(OBJ_SL.Text, 'vn '))) then
+//      begin
+//        v2:= 3;
+//        v3:= 5;
+//      end
+//      else
+//      begin
+//        v2:= 2;
+//        v3:= 3;
+//      end;
+//    end;
+//
+//    Memo2.Lines.Add('Collecting faces...');
+//    For x := 0 to OBJ_SL.Count-1 do
+//    begin
+//      If ContainsText(OBJ_SL.Strings[x],'Water') then
+//      begin
+//        aGroup := TStringList.Create;
+//        Water.add(aGroup)
+//      end;
+//
+//      If ContainsText(OBJ_SL.Strings[x],'Land') then
+//      begin
+//        aGroup := TStringList.Create;
+//        Land.add(aGroup)
+//      end;
+//
+//      If ContainsText(OBJ_SL.Strings[x], 'f ') then
+//      begin
+//        CurrentLine := OBJ_SL.Strings[x];
+//        //pick the vertex indices from the face table
+//        aGroup.Add(CurrentLine.Split(Delimiters)[1]);
+//        aGroup.Add(CurrentLine.Split(Delimiters)[v2]);
+//        aGroup.Add(CurrentLine.Split(Delimiters)[v3]);
+//      end;
+//
+//
+//    end;
+//    Memo2.Lines.Add('Finished collecting faces.');
+//
+//
+//    /////////////////////
+//
+//    {Combine Vertex Lists and find the extent of their coverage}
+//    Total_VertexList.addrange(Land_VertexList);
+//    Total_VertexList.addrange(Sea_VertexList);
+//    For aVertex in Total_VertexList do
+//        SetExtents(aVertex);
+
+	{Begin insertion of patches and primitives}
+
+    //find insertion point for edits
+    x := DSF_SL.IndexOf('RASTER_DEF bathymetry')+1;
+
+    Memo2.Lines.Add('Inserting edited mesh...');
+
+
+    ///////////////////////////USE FACE VERTEX ORDERS FOR WAVEFRONT OBJ///////////////////////
+    ///
+    {DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
+    inc(x);
+    //begin primitive
+    DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+    inc(x);}
+
+
+    For aGroup in Water do
+    begin
+      DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 7');
+      inc(x);
+      //begin primitive
+      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+      inc(x);
+//      For vert in aGroup do
+      For v := aGroup.count-1 downto 0 do
+//      For v := 0 to aGroup.count-1 do
+      begin
+        Vert:= aGroup[v];
+        If StrToInt(Vert) > Total_VertexList.count then
+        begin
+          MessageDlg('Found a water face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
+          exit;
+        end;
+
+        For aVertex in Total_VertexList do
+        begin
+          If aVertex.id = StrToInt(vert) then
+            break;
+        end;
+
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+//        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(Sea_VertexList[StrToInt(vert)-1].long/100000, ffFixed, 13, 9)+#9+FloatToStrF(Sea_VertexList[StrToInt(vert)-1].lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(Sea_VertexList[StrToInt(vert)-1].height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+        inc(x);
+      end;
+      DSF_SL.Insert(x,'END_PRIMITIVE');
+      inc(x);
+      DSF_SL.Insert(x,'END_PATCH');
+      inc(x);
+    end;
+
+    For aGroup in Land do
+    begin
+      DSF_SL.Insert(x,'BEGIN_PATCH 1 0.000000 -1.000000 1 5');
+      inc(x);
+      //begin primitive
+      DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+      inc(x);
+//      For vert in aGroup do
+      For v := aGroup.count-1 downto 0 do
+//      For v := 0 to aGroup.count-1 do
+      begin
+        Vert:= aGroup[v];
+        If StrToInt(Vert) > Total_VertexList.count then       //total number of verts. Remember that Land vertices are offset from Sea verts by total number of sea verts
+        begin
+          MessageDlg('Found a land face vertex reference that does not exist in the vertex list. This OBJ is likely to be incompletely written.'+sLineBreak+'Exiting.', mtError, mbOKCancel, 0, mbOK);
+          exit;
+        end;
+
+        For aVertex in Total_VertexList do
+        begin
+          If aVertex.id = StrToInt(vert) then
+            break;
+        end;
+
+
+        DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9){elevation}+#9+'-0.000015259'+#9+'-0.000015259');  //Remember that Land vertices are offset from Sea verts by total number of sea verts
+        inc(x);
+      end;
+      DSF_SL.Insert(x,'END_PRIMITIVE');
+      inc(x);
+      DSF_SL.Insert(x,'END_PATCH');
+      inc(x);
+    end;
+
+    ////////////////////////////////////////
+
+    ///////////////////////////USE INDEXES TO PLACE VERTICES FOR XP OBJ///////////////////////
+    //begin insertion of a single??? sea patch
+    {DSF_SL.Insert(x,'BEGIN_PATCH 0 0.000000 -1.000000 1 5');
+    inc(x);
+    //begin primitive
+    DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
+    inc(x);
+    For IDX in IDX_List do
+    begin
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(Inserted_VertexList[StrToInt(IDX)].long/100000)+#9+FloatToStrF(Inserted_VertexList[StrToInt(IDX)].lat/100000)+#9+'-32768.000000000'+#9+'-0.000015259'+#9+'-0.000015259');
+      inc(x);
+    end;
+    DSF_SL.Insert(x,'END_PRIMITIVE');
+    inc(x);
+    DSF_SL.Insert(x,'END_PATCH');
+    inc(x); }
+    ////////////////////////////////////////
+
+
+    Memo2.Lines.Add('Finished inserting edited mesh.');
+    If DimXEdit.Text <> '' then
+    begin
+      x := DSF_SL.Count-1;
+      repeat
+        dec(x)
+      until ContainsText(DSF_SL.Strings[x], 'sea_level.raw');  //find penultimate line in file
+      {edit last 2 RASTER_DATA lines}
+      DSF_SL.Strings[x-1] := 'RASTER_DATA version=1 bpp=2 flags=5 width='+DimXEdit.text+' height='+DimYEdit.text+' scale='+ScaleEdit.text+' offset=0.000000 '+ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw';
+      DSF_SL.Strings[x] := 'RASTER_DATA version=1 bpp=2 flags=1 width=256 height=256 scale=1.000000 offset=0.000000 '+SeaLevelEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.sea_level.raw'
+    end;
+
+
+    If not ContainsText(DSF_SL.text, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards') then
+    begin
+      x := DSF_SL.IndexOf('DSF2TEXT')+2;
+      DSF_SL.Insert(x, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards');
+    end;
+
+    Memo2.Lines.Add('Saving new DSF...');
+    DSF_SL.SaveToFile(StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
+  finally
+    aVertex.Free;
+//    IDX_List.Free;
+    MessageBeep(MB_OK);
+    Memo2.Lines.Add('Done!');
+  end;
+end;
+
+
+
+procedure TForm1.CombinedOBJButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'OBJ files (*.obj)|*.OBJ';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    CombinedOBJEdit.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
+
+procedure TForm1.WAVOBJRadioButtonClick(Sender: TObject);
+begin
+  With WAVOBJRadioButton do
+  begin
+    If checked then
+    begin
+      CombinedOBJCheckBox.Enabled := true;
+      CombinedOBJButton.Enabled := true;
+      LandOBJButton.Enabled := false;
+      SeaOBJButton.Enabled := false;
+    end;
+  end;
+end;
+
+procedure TForm1.XPOBJRadioButtonClick(Sender: TObject);
+begin
+  With XPOBJRadioButton do
+  begin
+    If checked then
+    begin
+      CombinedOBJCheckBox.Checked := false;
+      CombinedOBJCheckBox.Enabled := false;
+      CombinedOBJButton.Enabled := false;
+      LandOBJButton.Enabled := true;
+      SeaOBJButton.Enabled := true;
+    end;
+  end;
+end;
+
+
+
+procedure TForm1.Triangles(prim_id: integer);
+var aVertex: TVERTEX;
+    x,y: integer;
+begin
+//   OBJ_Vertex_list.Clear;
+//   OBJ_Face_List.clear; //clear list to start over
+
+   If Land_Vertex_list.Count <> 0 then
+    x := Land_Vertex_list.Count
+   else
+    x:= 0;
+
+   If Sea_Vertex_list.Count <> 0 then
+    y := Sea_Vertex_list.Count
+   else
+    y:= 0;
+   //iterate through all patch_vertices which have a parent_id matching prim_id
+   //store in vertex_list
+   //create faces from groups of 3 and add to face list  ??
+
+   //iterate through all patch_vertices which have a parent_id matching prim_id
+   For aVertex in Land_VertexList do
+   begin
+     If aVertex.primitive_id = prim_id then
+     begin
+        //store in vertex_list
+      Land_Vertex_list.Add(aVertex);
+     end;
+   end;
+
+   For aVertex in Sea_VertexList do
+   begin
+     If aVertex.primitive_id = prim_id then
+     begin
+        //store in vertex_list
+      Sea_Vertex_list.Add(aVertex);
+     end;
+   end;
+
+   While x < Land_Vertex_list.Count do
+   begin
+    //create faces from groups of 3 and add to face list
+    OBJ_Face_List.Add(TOBJ_Face.create(x+3, x+2, x+1, 'Land'));
+    inc(x,3);
+   end;
+
+   While y < Sea_Vertex_list.Count do
+   begin
+    //create faces from groups of 3 and add to face list
+    OBJ_Face_List.Add(TOBJ_Face.create(y+3, y+2, y+1, 'Sea'));
+    inc(y,3);
+   end;
+
+
+end;
+
+procedure TForm1.TriangleStrip(prim_id: integer);
+var aVertex: TVERTEX;
+    x,y: integer;
+begin
+
+
+//   If Land_Vertex_list.Count <> 0 then
+//    x := Land_Vertex_list.Count+1
+//   else
+//    x:= 1;
+//
+//   If Sea_Vertex_list.Count <> 0 then
+//    y := Sea_Vertex_list.Count+1
+//   else
+//    y:= 1;
+//   //iterate through all patch_vertices which have a parent_id matching prim_id
+//   //convert their coords from degrees to xyz?
+//   //store in vertex_list
+//   //create faces from first group of 3
+//   //every face after that uses last 2 verts of last face
+//
+//   //iterate through all patch_vertices which have a parent_id matching prim_id
+//   For aVertex in Land_VertexList do
+//   begin
+//     If aVertex.primitive_id = prim_id then
+//     begin
+//        //store in vertex_list
+//      Land_Vertex_list.Add(IntToStr(aVertex.id));
+//     end;
+//   end;
+//
+//   For aVertex in Sea_VertexList do
+//   begin
+//     If aVertex.primitive_id = prim_id then
+//     begin
+//        //store in vertex_list
+//      Sea_Vertex_list.Add(IntToStr(aVertex.id));
+//     end;
+//   end;
+//
+//  { //create first triangle
+//   If OBJ_Vertex_list.Count >= 3 then
+//    OBJ_Face_List.Add(TOBJ_Face.create(x+1, x+2, x+3));
+//   inc(x,2); }
+//
+//   //every face after that uses last 2 verts of last face
+//   While x < Land_Vertex_list.Count do
+//   begin
+//    If x+2 <= Land_Vertex_list.Count then //check to make sure that we still have more verts to read
+//      OBJ_Face_List.Add(TOBJ_Face.create(x+2, x+1, x, 'Land'));       //first in forward order...
+//    inc(x,2);
+//    If x+1 <= Land_Vertex_list.Count then //check to make sure that we still have more verts to read
+//      OBJ_Face_List.Add(TOBJ_Face.create(x+1, x-1, x, 'Land'));           //then in backward order to preserve upward facing polygons
+//   end;
+//
+//   While y < Sea_Vertex_list.Count do
+//   begin
+//    //first in forward order...
+//    If y+2 <= Sea_Vertex_list.Count then
+//      OBJ_Face_List.Add(TOBJ_Face.create(y+2, y+1, y, 'Sea'));
+//    inc(y,2);
+//    If y+1 <= Sea_Vertex_list.Count then //check to make sure that we still have more verts to read
+//      //then in backward order to preserve upward facing polygons
+//      OBJ_Face_List.Add(TOBJ_Face.create(y+1, y-1, y, 'Sea'));
+//   end;
+
+end;
+
+procedure TForm1.TXTButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'TXT Files (*.txt)|*.TXT';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    TXTCombo.Text := OpenTextFileDialog1.FileName;
+    DSFCombo.text := '';
+    OutputDirCombo.text := ExtractFilePath(TXTCombo.Text);
+    OutputNameCombo.Text := ChangeFileExt(ExtractFileName(TXTCombo.Text), '')+'.dsf';
+  end;
+end;
+
+
+procedure TForm1.TXTComboChange(Sender: TObject);
+begin
+  DSFCombo.text := '';
+end;
+
+procedure TForm1.TriangleFan(prim_id: integer);
+var aVertex: TVERTEX;
+    central_vert, x: integer;
+begin
+
+
+//   If OBJ_Vertex_List.Count <> 0 then
+//   begin
+//    x := OBJ_vertex_list.Count+1;
+//    central_vert := x;
+//   end
+//   else
+//   begin
+//    x:= 0;
+//    central_vert := x+1;
+//   end;
+//
+//   //iterate through all patch_vertices which have a parent_id matching prim_id
+//   //convert their coords from degrees to xyz?
+//   //store in vertex_list
+//   //create faces from first group of 3
+//   //every face after that uses first vert in list, last vert used, and next vert in list
+//
+//   //iterate through all patch_vertices which have a parent_id matching prim_id
+//   For aVertex in Land_VertexList do
+//   begin
+//     If aVertex.primitive_id = prim_id then
+//     begin
+//        //store in vertex_list
+//      OBJ_Vertex_list.Add(IntToStr(aVertex.id));
+//     end;
+//   end;
+//
+//   //create first triangle
+//   If OBJ_Vertex_list.Count >= 3 then
+//    OBJ_Face_List.Add(TOBJ_Face.create(x+3, x+2, central_vert));
+//   inc(x,3);
+//
+//   //every face after that uses last 2 verts of last face
+//   While x < OBJ_Vertex_list.Count do
+//   begin
+//    //first in forward order...
+//    OBJ_Face_List.Add(TOBJ_Face.create(x+1, x, central_vert));
+//    inc(x,1);
+//   end;
+
+end;
+
+
+
+procedure TForm1.ElevationCheckBoxClick(Sender: TObject);
+begin
+  if ElevationCheckBox.checked then
+  begin
+    InterpolateCheckBox1.Enabled := true;
+    UpperEdit.Enabled := true;
+    LowerEdit.Enabled := true;
+  end
+  else
+  begin
+    InterpolateCheckBox1.Enabled := false;
+    InterpolateCheckBox1.Checked := false;
+    UpperEdit.Enabled := false;
+    LowerEdit.Enabled := false;
+  end;
+end;
+
+procedure TForm1.ElevationEditChange(Sender: TObject);
+begin
+  SeaLevelEdit.Text := ElevationEdit.Text
+end;
+
+
+
+procedure TForm1.ElevationSourceRadioGroupClick(Sender: TObject);
+begin
+  If ElevationSourceRadioGroup.ItemIndex = 0 then
+  begin
+    InterpolateCheckBox2.Enabled := true;
+    UpperEdit2.Enabled := true;
+    LowerEdit2.Enabled := true;
+  end
+  else
+  begin
+    InterpolateCheckBox2.Enabled := false;
+    InterpolateCheckBox2.Checked := false;
+    UpperEdit2.Enabled := false;
+    LowerEdit2.Enabled := false;
+  end;
+end;
+
+procedure TForm1.ExportOBJ(ScaleFactor: integer);
+var SL: TStringList;
+    aGroup: TOBJ_Group;
+    aVertex: TVertex;
+    aFace: TOBJ_Face;
+    SaveName: string;
+    g: integer;
+
+begin
+  Memo1.Lines.Add('Starting OBJ Export!');
+
+  SL := TStringList.Create;
+  //header
+  SL.Text := '# Alias OBJ Model File'+sLineBreak+'# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards'+SLineBreak+'# File units = meters'+sLineBreak;
+
+  g := 0;
+
+  for aGroup in anOBJ.children do
+    begin
+      inc(g);
+      SL.Add(sLineBreak+'g Mesh'+IntToStr(g)+' '+aGroup.ter_def+' Model'+sLineBreak);
+      for aVertex in aGroup.vertices do
+        begin
+          If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
+            aVertex.height := 0;
+//          SL.Add('#'+IntToStr(aVertex.id));
+          SL.Add('v '+FloatToStrF(aVertex.long*ScaleFactor, ffFixed, 11,4)+' '+FloatToStrF(aVertex.lat*ScaleFactor, ffFixed, 11,4)+' '+FloatToStrF(aVertex.height, ffFixed, 11,4){+' #'+IntToStr(aVertex.id)});
+        end;
+
+      for aFace in aGroup.faces do
+      begin
+        SL.Add('f '+IntToStr(aFace.v1)+' '+IntToStr(aFace.v2)+' '+IntToStr(aFace.v3));
+      end;
+    end;
+//  //Sea Group Mesh
+//  SL.Add(sLineBreak+'g Mesh1 Sea Model'+sLineBreak);
+//  For aVertex in Sea_Vertex_list do
+//  begin
+//    If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
+//      aVertex.z := 0;
+//    SL.Add('v '+FloatToStrF(aVertex.x*100000, ffFixed, 11,4)+' '+FloatToStrF(aVertex.y*100000, ffFixed, 11,4)+' '+FloatToStrF(aVertex.z, ffFixed, 11,4){'0'});
+//  end;
+//
+//  For aFace in OBJ_Face_List do
+//  begin
+//    If aFace.Group = 'Sea' then
+//      SL.Add('f '+IntToStr(aFace.v1)+' '+IntToStr(aFace.v2)+' '+IntToStr(aFace.v3));
+//  end;
+//
+//  //Land Group Mesh
+//  SL.Add(sLineBreak+'g Mesh2 Land Model'+sLineBreak);
+//  For aVertex in Land_Vertex_list do
+//  begin
+//    If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
+//      aVertex.z := 0;
+//    SL.Add('v '+FloatToStrF(aVertex.x*100000, ffFixed, 11,4)+' '+FloatToStrF(aVertex.y*100000, ffFixed, 11,4)+' '+FloatToStrF(aVertex.z, ffFixed, 11,4){'0'});
+//  end;
+//
+//  For aFace in OBJ_Face_List do
+//  begin
+//    If aFace.Group = 'Land' then
+//    {vertex indices for faces must reference their position in the list.
+//    Since we added new vertices since we completed the sea mesh all vertex indices will now be offset by the total number of sea vertices}
+//      SL.Add('f '+IntToStr(aFace.v1+Sea_Vertex_list.Count)+' '+IntToStr(aFace.v2+Sea_Vertex_list.Count)+' '+IntToStr(aFace.v3+Sea_Vertex_list.Count));
+//  end;
+
+
+  Try
+
+    SaveName := StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]);
+    MessageBeep(MB_OK);
+    If FileExists(SaveName) then
+    begin
+      SaveDialog1.Filter := 'OBJ files (*.obj)|*.OBJ';
+      SaveDialog1.Options := [];
+      If SaveDialog1.Execute() then
+      begin
+        SaveName := SaveDialog1.FileName;
+      end;
+    end;
+    SL.SaveToFile(SaveName);
+
+    Memo1.Lines.Add('OBJ Export Succesful!');
+  Finally
+    SL.Free;
+  End;
+
+end;
+
+///DOES NOT WORK IN WIN10???
+procedure TForm1.Drag_Drop_File(var Msg: TMessage);
+//code from http://swepc.se/blog/how-to-drag-drop-files-delphi-10/
+var
+  extension: string;
+  limit, number: Integer;
+  path: array [0 .. MAX_COMPUTERNAME_LENGTH + MAX_PATH] of Char;
+begin
+  limit := DragQueryFile(Msg.WParam, $FFFFFFFF, path, 275) - 1;
+  {
+    if the index value is 0xFFFFFFFF,
+    the return value is a count of the dropped files.
+  }
+  for number := 0 to limit do
+  begin
+    DragQueryFile(Msg.WParam, number, path, 275);
+    {
+      if the index value is between zero and the total number of dropped files,
+      the return value is the required size, in characters.
+    }
+    if (FileExists(path)) then
+    begin
+      extension := ExtractFileExt(path);
+      // Extracts the extension part of path like [.jpg, .png, .txt]
+      if (extension = '.txt') then
+      begin
+        TXTCombo.Text := path;
+        DSFCombo.Text := '';
+        OutputDirCombo.text := ExtractFilePath(path);
+        OutputNameCombo.Text := ChangeFileExt(ExtractFileName(path), '')+'.dsf';
+      end
+      else if (extension = '.dsf') then
+      begin
+        DSFCombo.Text := path;
+        TXTCombo.Text := '';
+        OutputDirCombo.text := ExtractFilePath(path);
+        OutputNameCombo.Text := ChangeFileExt(ExtractFileName(path), '')+'.txt';
+      end
+      else
+      begin
+        MessageBox(Form1.Handle, PChar('Not a DSF or TXT file.'),
+          PChar('DSF Tool'), MB_ICONWARNING);
+      end;
+
+    end;
+
+  end;
+  DragFinish(Msg.WParam);
+  // This frees the resources used to store information about the drop.
+
+  If RunDSFToolCheckBox.Checked then
+    DSFToolButton.Click;
+
+end;
+
+procedure TForm1.AddDetailButtonClick(Sender: TObject);
+var state, match: boolean;
+    index: integer;
+    OBJ_SL: TStringList;
+begin
+
+  face_count := 0;
+  vert_count := 0;
+  prim_count := 0;
+
+  state := ElevationCheckBox.Checked;
+  match := MatchCheckBox.Checked;
+  index := ElevationSourceRadioGroup.ItemIndex;
+  ElevationCheckBox.Checked := false;
+  MatchCheckBox.Checked := false;
+  ElevationSourceRadioGroup.ItemIndex := 1;
+
+  OBJ_SL := TStringList.Create;
+  anOBJ := TOBJ.create;
+
+  progressbar2.Max := 3;
+  progressbar2.Position := 0;
+
+
+  try
+    OBJ_SL.LoadFromFile(LoadOBJEdit.Text);
+    Memo4.Lines.Add('Reading OBJ...');
+    CollectOBJ(OBJ_SL);
+    Memo4.Lines.Add('Finished reading OBJ.');
+    progressbar2.Position := 1;
+    Memo4.Lines.Add('Adding detail to triangles...');
+    AddDetail;
+    Memo4.Lines.Add('Finished adding detail.');
+    progressbar2.Position := 2;
+    Memo4.Lines.Add('Starting OBJ Export...');
+    ExportOBJ(1);
+    Memo4.Lines.Add('Export Done!');
+    progressbar2.Position := 3;
+  finally
+    OBJ_SL.Free;
+    anOBJ.Free;
+    ElevationCheckBox.checked := state;
+    MatchCheckBox.Checked := match;
+    ElevationSourceRadioGroup.ItemIndex := index;
+  end;
+end;
+
+procedure TForm1.BeforeDestruction;
+var Comps: Array of TComponent;
+    x: integer;
+begin
+  inherited;
+
+  SetLength(Comps, ComponentCount);
+  For x := 0 to ComponentCount-1 do
+  begin
+    Comps[x]:= Components[x];		
+  end;
+	
+
+  SaveState(Comps, ComponentCount, ExtractFilePath(Application.ExeName)+'OBJ2XPMesh.fs');				 
+end;
+
+procedure TForm1.ReadElevations(FileName: string; out rows_out: integer; upper, lower: single; interpolate: boolean=true);
+type Tinvalid = record
+  indices: array [0..1] of integer;
+end;
+
+var FS: TFileStream;
+    r,c, new_Value: integer;
+    d: word;
+    invalid_data: TList<Tinvalid>;
+    value: Tinvalid;
+
+begin
+
+
+  FS:= TFileStream.Create(FileName, fmopenread + fmShareDenyNone{ or fmShareDenyWrite});
+  rows_out := trunc(sqrt(FS.Size/8)*2);  //total_rows=total_columns
+  progressbar1.Max := rows_out*rows_out;
+  progressbar1.Position := 0;
+  invalid_data := TList<Tinvalid>.create;
+
+  try
+    FS.Position:=0;
+    SetLength(RAW_Array, rows_out+1, rows_out+1);
+
+    For r := rows_out downto 1 do
+    begin
+      For c := 1 to rows_out do
+      begin
+        If FS.Read(d, sizeof(d)) > 0 then
+        begin
+          RAW_Array[r,c] := d;
+          progressbar1.Position := progressbar1.Position + 1;;
+          if (d > upper) or (d < lower) then
+          begin
+            Value.indices[0] := r;
+            value.indices[1] := c;
+            invalid_data.Add(Value);
+          end;
+
+        end;
+      end;
+    end;
+
+  finally
+    FS.Free;
+
+  end;
+
+  If interpolate then
+  begin
+    progressbar1.Position := 0;
+    progressbar1.max := invalid_data.Count;
+    For value in invalid_data do
+    begin
+      new_value := 0;
+      r := value.indices[0];
+      c := value.indices[1];
+
+      If (RAW_Array[r-1,c] < upper) and (RAW_Array[r-1,c] > lower) then
+        new_value := new_value+RAW_Array[r-1,c];
+      If (RAW_Array[r+1,c] < upper) and (RAW_Array[r+1,c] > lower) then
+        new_value := new_value+RAW_Array[r+1,c];
+      If (RAW_Array[r,c-1] < upper) and (RAW_Array[r,c-1] > lower) then
+        new_value := new_value+RAW_Array[r,c-1];
+      If (RAW_Array[r,c+1] < upper) and (RAW_Array[r,c+1] > lower) then
+        new_value := new_value+RAW_Array[r,c+1];
+      new_value := new_Value div 4;
+
+      Raw_Array[r,c] := new_value;
+      progressbar1.Position := progressbar1.Position + 1;;
+    end;
+  end;
+
+  invalid_data.Free;
+end;
+
+function TForm1.FindElevation(aVertex: TVertex; total_rows: integer): word;
+var r,c: integer;
+begin
+//    Find XY position as fraction of extents
+//    Determine row and column position based on fraction of total rows/columns
+
+  //X and Y below may have been incorrectly exchanged
+  r := trunc(((Extents[1]-(aVertex.lat))/(Extents[1]-Extents[2]))*total_rows);      //(N - vertex_lat)/(N-S) * total_rows
+  c := trunc(((Extents[3]-(aVertex.long))/(Extents[3]-Extents[4]))*total_rows);    //(W - vertex_long)/(W-E) * total_columns
+
+  result := RAW_array[r,c];
+end;
+
+procedure TForm1.SetExtents(aVertex: TVERTEX);
+begin
+    //northern most vertex
+  If aVertex.lat > Extents[1] then
+    Extents[1] := aVertex.lat;
+  //southern most vertex
+  If aVertex.lat < Extents[2] then
+    Extents[2] := aVertex.lat;
+  //western most vertex
+  If aVertex.long < Extents[3] then
+    Extents[3] := aVertex.long;
+  //eastern most vertex
+  If aVertex.long > Extents[4] then
+    Extents[4] := aVertex.long;
+end;
+
+procedure TForm1.AddDetail;
+var aGroup, anotherGroup: TOBJ_Group;
+    aFace, anotherFace: TOBJ_Face;
+    aVertex: TVERTEX;
+    Face1, Face2, Face3, Face4: TOBJ_Face;
+    Vert1, Vert2, Vert3, Vert4, Vert5, Vert6 : TVERTEX;
+    aDetailedOBJ: TOBJ;
+    NewVerts : TOBJ_Group;
+    num_verts, last_group_vert_count, cum_vert_count, cum_face_count, original_face_count, original_Vert_count: integer;
+begin
+
+//  progressbar1.Max := 100;
+  progressbar1.Position := 0;
+  /// iterate through Groups
+  ///If group is not sea
+  /// For each face in group
+  /// Create 4 new faces in place
+  ///  New verts are halfway in between old verts
+  ///  New faces are 1,4,6 4,2,5 6,5,3 & 4,5,6
+  ///  Create new Group with new faces
+  ///  add to new OBJ
+  ///  add groups which were not changed
+  ///  old OBJ := new OBJ
+  ///
+  original_Vert_count := vert_count;
+//  vert_count := 0;
+
+  aDetailedOBJ := TOBJ.create;
+
+  Memo1.Lines.add('Creating new vertices and faces...');
+
+//Decrement each ID in each group by the total number of verts before it
+//We will be resetting each vertex and face reference to start at 1 for each group
+  original_face_count := 0;
+  cum_vert_count := 0;
+  for aGroup in anOBJ.children do
+  begin
+    for aVertex in aGroup.Vertices do
+      aVertex.id := aVertex.id - cum_vert_count;
+
+    for aFace in aGroup.Faces do
+    begin
+      aFace.v1 := aFace.v1 - cum_vert_count;
+      aFace.v2 := aFace.v2 - cum_vert_count;
+      aFace.v3 := aFace.v3 - cum_vert_count;
+
+      inc(original_face_count);
+    end;
+    cum_vert_count := cum_vert_count+aGroup.Vertices.Count;
+
+  end;
+
+//  Now we start adding detail, splitting each face into 4 smaller faces.
+  try
+    progressbar1.max := anOBJ.children.Count;
+    for aGroup in anOBJ.children do
+    begin
+        NewVerts := TOBJ_Group.create('temp 0');
+//      if aGroup.ter_def <>  '0' then
+//      begin
+        anotherGroup := TOBJ_Group.Create('anotherGroup 0');
+        anotherGroup.ter_def := aGroup.ter_def;
+        anotherGroup.Vertices := aGroup.Vertices;              //new vertices will be added to originals
+
+        num_verts := aGroup.Vertices.Count+1;                     //all new vertex IDS will now start from this number
+        for aFace in aGroup.Faces do
+        begin
+          Vert1 := aGroup.FindVertex(aFace.v1);
+          Vert2 := aGroup.FindVertex(aFace.v2);
+          Vert3 := aGroup.FindVertex(aFace.v3);
+
+          Vert4 := TVERTEX.create(Vert1, Vert2, num_verts);
+          if NewVerts.FindVertex(Vert4) = nil then   //check to see whether a vertex already exists at identical position
+          begin
+            NewVerts.vertices.add(Vert4);                      //if not, add it to the new list
+            inc(num_verts);
+            anotherGroup.vertices.add(Vert4);                  //and add it to the Group
+          end
+          else
+          begin
+            Vert4 := NewVerts.FindVertex(Vert4);     //else replace it with the one we found so that there are no duplicates
+//              dec(num_verts);                         //ignore the last created vertice
+          end;
+
+          Vert5 := TVERTEX.create(Vert2, Vert3, num_verts);
+          if NewVerts.FindVertex(Vert5) = nil then   //check to see whether vert exists at identical position
+          begin
+            NewVerts.vertices.add(Vert5);                      //if not, add it to the new list
+            inc(num_verts);
+            anotherGroup.vertices.add(Vert5);
+          end
+          else
+          begin
+            Vert5 := NewVerts.FindVertex(Vert5);     //else replace it with the one we found so that there are no duplicates
+//              dec(num_verts);                         //ignore the last created vertice
+          end;
+
+          Vert6 := TVERTEX.create(Vert3, Vert1, num_verts);
+          if NewVerts.FindVertex(Vert6) = nil then   //check to see whether vert exists at identical position
+          begin
+            NewVerts.vertices.add(Vert6);                      //if not, add it to the new list
+            inc(num_verts);
+            anotherGroup.vertices.add(Vert6);
+          end
+          else
+          begin
+            Vert6 := NewVerts.FindVertex(Vert6);     //else replace it with the one we found so that there are no duplicates
+//              dec(num_verts);                         //ignore the last created vertice
+          end;
+
+          Face1 := TOBJ_Face.Create(Vert1.id, Vert4.id, Vert6.id, aGroup.ter_def);
+          Face2 := TOBJ_Face.Create(Vert4.id, Vert2.id, Vert5.id, aGroup.ter_def);
+          Face3 := TOBJ_Face.Create(Vert6.id, Vert5.id, Vert3.id, aGroup.ter_def);
+          Face4 := TOBJ_Face.Create(Vert4.id, Vert5.id, Vert6.id, aGroup.ter_def);
+
+
+          anotherGroup.faces.addrange([Face1, Face2, Face3, Face4]);    //faces are replaced completely
+        end;
+
+        aDetailedOBJ.children.Add(anotherGroup);
+
+//      end;
+      progressbar1.Position := progressbar1.Position + 1;
+      NewVerts.free;
+    end;
+
+    //now we increment each ID in each group by the total number of verts before it;
+    cum_face_count := 0;
+    cum_vert_count := 0;
+    for aGroup in aDetailedOBJ.children do
+    begin
+      for aVertex in aGroup.Vertices do
+        aVertex.id := aVertex.id + cum_vert_count;
+
+
+      for aFace in aGroup.Faces do
+      begin
+        aFace.v1 := aFace.v1 + cum_vert_count;
+        aFace.v2 := aFace.v2 + cum_vert_count;
+        aFace.v3 := aFace.v3 + cum_vert_count;
+
+        inc(cum_face_count);
+      end;
+      cum_vert_count := cum_vert_count+aGroup.Vertices.Count;
+
+    end;
+
+
+    Memo4.Lines.add('Finshed creating new vertices and faces.');
+    Memo4.Lines.add('Split '+IntToStr(original_face_count)+' faces into '+IntToStr(cum_face_count)+' faces.');
+
+
+//    Memo1.Lines.add('Adding unchanged groups/patches...');
+//    for aGroup in anOBJ.children do
+//      begin
+//        for anotherGroup in anotherOBJ.children do
+//          begin
+//            if aGroup = anotherGroup then
+//              break;
+////        if aGroup.ter_def = '0' then
+//            anotherOBJ.children.Add(aGroup); //add groups which are not identical, i.e. unchanged from original
+//          end;
+//      end;
+//    Memo1.Lines.add('Finished adding unchanged groups/patches.');
+
+    anOBJ := aDetailedOBJ;   //assign edited OBJ for export
+  finally
+//    anotherOBJ.free;
+//    anotherGroup.free;
+
+    Memo1.Lines.add('Done adding detail!');
+  end;
+
+
+
+end;
+
+end.
+
