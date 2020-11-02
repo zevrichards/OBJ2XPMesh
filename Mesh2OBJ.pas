@@ -6,7 +6,8 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtDlgs, Vcl.StdCtrls,
   System.StrUtils, System.generics.collections, Vcl.ComCtrls, system.Math,
-  Vcl.ExtCtrls, Launch, WinApi.ShellApi, Winsock, RSCommonFunctions;
+  Vcl.ExtCtrls, Launch, WinApi.ShellApi, Winsock, RSCommonFunctions,
+  System.Generics.Defaults;
 
 type TVERTEX = class
   id: integer;
@@ -147,6 +148,7 @@ type
     ProgressBar1: TProgressBar;
     ProgressBar2: TProgressBar;
     Memo4: TMemo;
+    CombinePatchesCheckBox: TCheckBox;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -184,7 +186,9 @@ type
     procedure SetExtents(aVertex: TVERTEX);
     procedure ElevationCheckBoxClick(Sender: TObject);
     procedure ElevationSourceRadioGroupClick(Sender: TObject);
+    procedure ResetVertReferences(operation: integer; myOBJ: TOBJ; out face_count: integer);
     procedure AddDetail;
+    procedure CombinePatches;
     procedure AddDetailButtonClick(Sender: TObject);
     procedure LoadOBJButtonClick(Sender: TObject);
   private
@@ -381,11 +385,7 @@ begin
 
   SL := TStringList.Create;
   try
-//    Open DSF.txt file
-    SL.LoadFromFile(DSFTXTEdit.Text);
-    {PrimitiveList := TObjectList<TPRIMITIVE>.create;
-    Sea_VertexList := TObjectList<TVERTEX>.create;
-    Land_VertexList := TObjectList<TVERTEX>.create;}
+    SL.LoadFromFile(DSFTXTEdit.Text);   //    Open DSF.txt file
     progressbar1.Max := SL.Count;
 
     For x := 0 to SL.Count-1 do     //collect patches, their primitives and their vertices
@@ -414,44 +414,6 @@ begin
         SetExtents(aVertex);  //determine extents of mesh coverage
       end;
     end;
-
-//    Find BEGIN_PATCH
-   {x:= 0;
-
-    While x < SL.Count do
-    begin
-      CurrentLine := SL.Strings[x];
-      If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[length(CurrentLine)-2]='1')) then   //a mesh poly that is used for collision*
-      begin
-
-        repeat
-          inc(x);
-          If ContainsText(SL.Strings[x], 'BEGIN_PRIMITIVE') then
-          begin
-            PrimitiveList.Add(Get_Primitive(SL.Strings[x]));
-            inc(x);
-
-            repeat
-              If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
-              begin
-                If (CurrentLine[13]='0')  then          //check for land or sea patch based on BEGIN_PATCH line
-                  Sea_VertexList.Add(Get_PatchVertex(SL.Strings[x]))
-                else
-                  Land_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
-              end;
-              inc(x);
-            until SL.Strings[x] = 'END_PRIMITIVE';
-
-          end;
-
-        until SL.Strings[x] = 'END_PATCH';
-
-      end;
-
-      inc(x);
-    end; }
-
-//    until EOF
 
     Memo1.Lines.Add(IntToStr(patch_count)+' Total Patches');
     Memo1.Lines.Add(IntToStr(prim_count)+' Total Primitives');
@@ -645,6 +607,8 @@ begin
     aDSF := TDSF.Create;
     anOBJ := TOBJ.create;
     ExtractPrimitives;
+    if CombinePatchesCheckbox.Checked then
+      CombinePatches;
     progressbar2.Position := 1;
     Convert2Triangles;
     progressbar2.Position := 2;
@@ -2037,6 +2001,104 @@ begin
     Extents[4] := aVertex.long;
 end;
 
+procedure TForm1.CombinePatches;
+var aPatch, aNewPatch: TPATCH;
+    aNewDSF: TDSF;
+    ter_def, f: integer;
+    aPrimitive: TPRIMITIVE;
+    aVertex: TVERTEX;
+
+begin
+
+//  sort patches by terrain definition
+//  create new DSF
+//  get ter_def of first patch, create first new patch
+//  iterate list comparing ter_def
+//  add primitves of next patch to newDSF first patch,
+//  continue unti next patch ter_def does not match ter_def of new first Pathc, then create new patch
+//  repeat until end of aDSF.children
+//  assign new DSF to old DSF
+
+  ter_def := -1;
+
+  aDSF.children.Sort(TComparer<TPATCH>.Construct(
+  function (const L,R: TPATCH): integer
+  begin
+    result := CompareInt(L.ter_def, R.ter_def);
+  end
+  ));
+
+  aNewDSF := TDSF.create;
+  aNewDSF.children := TObjectList<TPATCH>.create;
+
+  for aPatch in aDSF.children do
+    begin
+      if aPatch.ter_def <> ter_def then
+      begin
+        ter_def := aPATCH.ter_def;
+        aNewPatch := TPATCH.create('BEGIN_PATCH '+IntToStr(ter_def)+' 0.000000 -1.000000 1 7');
+        aNewPatch.children.AddRange(aPatch.children);
+        aNewDSF.children.add(aNewPatch);
+      end
+      else
+        aNewPatch.children.addrange(aPatch.children);
+    end;
+
+  ///ALREADY SORTED???
+  //sort vertices by index
+  {for aPatch in aDSF.children do
+    begin
+      //sort primitives first
+      aPatch.children.Sort(TComparer<TPRIMITIVE>.Construct(
+      function (const L,R: TPRIMITIVE): integer
+      begin
+        result := CompareInt(L.id, R.id);
+      end
+      ));
+      //then vertices inside primitives
+      for aPrimitive in aPatch.children do
+        begin
+          aPrimitive.children.Sort(TComparer<TVERTEX>.Construct(
+          function (const L,R: TVERTEX): integer
+          begin
+            result := CompareInt(L.id, R.id);
+          end
+          ));
+        end;
+    end;  }
+
+  aDSF := aNewDSF;
+
+end;
+
+procedure TForm1.ResetVertReferences(operation: integer; myOBJ: TOBJ; out face_count: integer);
+var aGroup: TOBJ_Group;
+    aFace: TOBJ_Face;
+    aVertex: TVERTEX;
+    cum_vert_count: integer;
+begin
+
+  face_count:=0;
+  cum_vert_count := 0;
+  for aGroup in myOBJ.children do
+  begin
+    for aVertex in aGroup.Vertices do
+      aVertex.id := aVertex.id + (cum_vert_count*operation);
+
+    for aFace in aGroup.Faces do
+    begin
+      aFace.v1 := aFace.v1 + (cum_vert_count*operation);
+      aFace.v2 := aFace.v2 + (cum_vert_count*operation);
+      aFace.v3 := aFace.v3 + (cum_vert_count*operation);
+
+      inc(face_count);
+    end;
+    cum_vert_count := cum_vert_count+aGroup.Vertices.Count;
+
+  end;
+
+end;
+
 procedure TForm1.AddDetail;
 var aGroup, anotherGroup: TOBJ_Group;
     aFace, anotherFace: TOBJ_Face;
@@ -2045,7 +2107,7 @@ var aGroup, anotherGroup: TOBJ_Group;
     Vert1, Vert2, Vert3, Vert4, Vert5, Vert6 : TVERTEX;
     aDetailedOBJ: TOBJ;
     NewVerts : TOBJ_Group;
-    num_verts, last_group_vert_count, cum_vert_count, cum_face_count, original_face_count, original_Vert_count: integer;
+    num_verts, new_face_count, original_face_count, original_Vert_count: integer;
 begin
 
 //  progressbar1.Max := 100;
@@ -2070,24 +2132,7 @@ begin
 
 //Decrement each ID in each group by the total number of verts before it
 //We will be resetting each vertex and face reference to start at 1 for each group
-  original_face_count := 0;
-  cum_vert_count := 0;
-  for aGroup in anOBJ.children do
-  begin
-    for aVertex in aGroup.Vertices do
-      aVertex.id := aVertex.id - cum_vert_count;
-
-    for aFace in aGroup.Faces do
-    begin
-      aFace.v1 := aFace.v1 - cum_vert_count;
-      aFace.v2 := aFace.v2 - cum_vert_count;
-      aFace.v3 := aFace.v3 - cum_vert_count;
-
-      inc(original_face_count);
-    end;
-    cum_vert_count := cum_vert_count+aGroup.Vertices.Count;
-
-  end;
+  ResetVertReferences(-1, anOBJ, original_face_count);
 
 //  Now we start adding detail, splitting each face into 4 smaller faces.
   try
@@ -2164,29 +2209,11 @@ begin
     end;
 
     //now we increment each ID in each group by the total number of verts before it;
-    cum_face_count := 0;
-    cum_vert_count := 0;
-    for aGroup in aDetailedOBJ.children do
-    begin
-      for aVertex in aGroup.Vertices do
-        aVertex.id := aVertex.id + cum_vert_count;
-
-
-      for aFace in aGroup.Faces do
-      begin
-        aFace.v1 := aFace.v1 + cum_vert_count;
-        aFace.v2 := aFace.v2 + cum_vert_count;
-        aFace.v3 := aFace.v3 + cum_vert_count;
-
-        inc(cum_face_count);
-      end;
-      cum_vert_count := cum_vert_count+aGroup.Vertices.Count;
-
-    end;
+    ResetVertReferences(1, aDetailedOBJ, new_face_count);
 
 
     Memo4.Lines.add('Finshed creating new vertices and faces.');
-    Memo4.Lines.add('Split '+IntToStr(original_face_count)+' faces into '+IntToStr(cum_face_count)+' faces.');
+    Memo4.Lines.add('Split '+IntToStr(original_face_count)+' faces into '+IntToStr(new_face_count)+' faces.');
 
 
 //    Memo1.Lines.add('Adding unchanged groups/patches...');

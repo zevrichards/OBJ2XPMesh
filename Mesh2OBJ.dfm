@@ -26,7 +26,7 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = OBJ2DSFPage
+    ActivePage = DSF2OBJPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
@@ -55,9 +55,9 @@ object Form1: TForm1
       end
       object Memo1: TMemo
         Left = 3
-        Top = 120
+        Top = 152
         Width = 828
-        Height = 209
+        Height = 177
         ScrollBars = ssVertical
         TabOrder = 1
       end
@@ -120,11 +120,21 @@ object Form1: TForm1
       end
       object AddDetailCheckBox: TCheckBox
         Left = 3
-        Top = 96
+        Top = 129
         Width = 97
         Height = 17
         Caption = 'Add Detail'
         TabOrder = 8
+      end
+      object CombinePatchesCheckBox: TCheckBox
+        Left = 3
+        Top = 106
+        Width = 366
+        Height = 17
+        Caption = 
+          'Combine patches with the same terrain definitions into single gr' +
+          'oups.'
+        TabOrder = 9
       end
     end
     object OBJ2DSFPage: TTabSheet
