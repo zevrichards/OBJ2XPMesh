@@ -57,6 +57,7 @@ type TOBJ_Face = Class
 End;
 
 type TOBJ_Group = class
+  id: integer;
   ter_def: string;
   Faces: TObjectList<TOBJ_Face>;
   Vertices: TObjectList<TVERTEX>;
@@ -248,6 +249,7 @@ end;
 
 constructor TOBJ_Group.create(aPatch: TPATCH);
 begin
+  self.id := aPatch.id;
   self.ter_def := IntToStr(aPatch.ter_def);
   self.Faces := TObjectList<TOBJ_Face>.create;
   self.Vertices := TObjectList<TVERTEX>.create;
@@ -255,6 +257,7 @@ end;
 
 constructor TOBJ_Group.Create(s: string);
 begin
+  self.id := StrToInt(RightStr(s.Split(OBJ_Delims)[1], Length(s.Split(OBJ_Delims)[1])-4));
   self.ter_def := s.Split(OBJ_Delims)[2];
   self.Faces := TObjectList<TOBJ_Face>.create;
   self.Vertices := TObjectList<TVERTEX>.create;
@@ -542,6 +545,7 @@ begin
   end;
   Memo1.Lines.Add('Done Conversion to Mesh!');}
 
+
   For aPatch in aDSF.children do
   begin
     aGroup := TOBJ_Group.create(aPatch);
@@ -550,8 +554,8 @@ begin
     begin
       for aVertex in aPrimitive.children do
         aGroup.Vertices.Add(aVertex);
-      v := 0;
 
+      v := 0;
       Case aPrimitive.prim_type of
       0:begin  //induvidual
 
@@ -1708,8 +1712,8 @@ begin
 
   for aGroup in anOBJ.children do
     begin
-      inc(g);
-      SL.Add(sLineBreak+'g Mesh'+IntToStr(g)+' '+aGroup.ter_def+' Model'+sLineBreak);
+//      inc(g);
+      SL.Add(sLineBreak+'g Mesh'+IntToStr(aGroup.id)+' '+aGroup.ter_def+' Model'+sLineBreak);
       for aVertex in aGroup.vertices do
         begin
           If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
@@ -2004,7 +2008,7 @@ end;
 procedure TForm1.CombinePatches;
 var aPatch, aNewPatch: TPATCH;
     aNewDSF: TDSF;
-    ter_def, f: integer;
+    ter_def, i: integer;
     aPrimitive: TPRIMITIVE;
     aVertex: TVERTEX;
 
@@ -2031,8 +2035,10 @@ begin
   aNewDSF := TDSF.create;
   aNewDSF.children := TObjectList<TPATCH>.create;
 
+//  for i := 0 to aDSF.children.count-1 do
   for aPatch in aDSF.children do
     begin
+//      aPatch := aDSF.children[i];
       if aPatch.ter_def <> ter_def then
       begin
         ter_def := aPATCH.ter_def;
@@ -2044,11 +2050,17 @@ begin
         aNewPatch.children.addrange(aPatch.children);
     end;
 
-  ///ALREADY SORTED???
-  //sort vertices by index
-  {for aPatch in aDSF.children do
+  //sort Patches
+  aNewDSF.children.Sort(TComparer<TPATCH>.Construct(
+  function (const L,R: TPATCH): integer
+  begin
+    result := CompareInt(L.id, R.id);
+  end
+  ));
+
+  for aPatch in aNewDSF.children do
     begin
-      //sort primitives first
+      //sort primitives inside patches first
       aPatch.children.Sort(TComparer<TPRIMITIVE>.Construct(
       function (const L,R: TPRIMITIVE): integer
       begin
@@ -2065,7 +2077,7 @@ begin
           end
           ));
         end;
-    end;  }
+    end;
 
   aDSF := aNewDSF;
 
@@ -2139,10 +2151,10 @@ begin
     progressbar1.max := anOBJ.children.Count;
     for aGroup in anOBJ.children do
     begin
-        NewVerts := TOBJ_Group.create('temp 0');
+        NewVerts := TOBJ_Group.create('g Mesh0 0 temp');
 //      if aGroup.ter_def <>  '0' then
 //      begin
-        anotherGroup := TOBJ_Group.Create('anotherGroup 0');
+        anotherGroup := TOBJ_Group.Create('g Mesh0 0 anotherGroup');
         anotherGroup.ter_def := aGroup.ter_def;
         anotherGroup.Vertices := aGroup.Vertices;              //new vertices will be added to originals
 
