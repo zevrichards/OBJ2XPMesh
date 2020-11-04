@@ -51,12 +51,21 @@ end;
 //end;
 
 type TOBJ_Face = Class
+  id: integer;
   v1,v2,v3: integer;
   Group: string;
   constructor Create(v1,v2,v3: integer; group: string);
 End;
 
+type myFaceRecord = record
+  Group: integer;
+  Face: integer;
+  v1,v2,v3: TVERTEX;
+  isDuplicate: boolean
+end;
+
 type TOBJ_Group = class
+  id: integer;
   ter_def: string;
   Faces: TObjectList<TOBJ_Face>;
   Vertices: TObjectList<TVERTEX>;
@@ -149,6 +158,7 @@ type
     ProgressBar2: TProgressBar;
     Memo4: TMemo;
     CombinePatchesCheckBox: TCheckBox;
+    RemoveDuplicateFacesCheckbox: TCheckBox;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -181,7 +191,7 @@ type
     procedure BeforeDestruction;  override;
     procedure OutputDirComboExit(Sender: TObject);
     procedure TXTComboChange(Sender: TObject);
-	procedure ReadElevations(FileName: string; out rows_out: integer; upper, lower: single; interpolate: boolean=true);
+	  procedure ReadElevations(FileName: string; out rows_out: integer; upper, lower: single; interpolate: boolean=true);
     function FindElevation(aVertex: TVertex; total_rows: integer): word;
     procedure SetExtents(aVertex: TVERTEX);
     procedure ElevationCheckBoxClick(Sender: TObject);
@@ -189,6 +199,9 @@ type
     procedure ResetVertReferences(operation: integer; myOBJ: TOBJ; out face_count: integer);
     procedure AddDetail;
     procedure CombinePatches;
+    procedure RemoveDuplicateFaces;
+    function CompareFaces(aFaceRecord, anotherFaceRecord: myFaceRecord): boolean;
+    function CompareVerts(aVertex, AnotherVertex: TVERTEX): boolean;
     procedure AddDetailButtonClick(Sender: TObject);
     procedure LoadOBJButtonClick(Sender: TObject);
   private
@@ -248,6 +261,7 @@ end;
 
 constructor TOBJ_Group.create(aPatch: TPATCH);
 begin
+  self.id := aPatch.id;
   self.ter_def := IntToStr(aPatch.ter_def);
   self.Faces := TObjectList<TOBJ_Face>.create;
   self.Vertices := TObjectList<TVERTEX>.create;
@@ -255,6 +269,7 @@ end;
 
 constructor TOBJ_Group.Create(s: string);
 begin
+  self.id := StrToInt(RightStr(s.Split(OBJ_Delims)[1], Length(s.Split(OBJ_Delims)[1])-4));
   self.ter_def := s.Split(OBJ_Delims)[2];
   self.Faces := TObjectList<TOBJ_Face>.create;
   self.Vertices := TObjectList<TVERTEX>.create;
@@ -363,6 +378,7 @@ constructor TOBJ_Face.Create(v1,v2,v3: integer; Group: string);
 begin
   inc(face_count);
 
+  self.id := face_count;
   self.v1 := v1;
   self.v2 := v2;
   self.v3 := v3;
@@ -385,11 +401,7 @@ begin
 
   SL := TStringList.Create;
   try
-//    Open DSF.txt file
-    SL.LoadFromFile(DSFTXTEdit.Text);
-    {PrimitiveList := TObjectList<TPRIMITIVE>.create;
-    Sea_VertexList := TObjectList<TVERTEX>.create;
-    Land_VertexList := TObjectList<TVERTEX>.create;}
+    SL.LoadFromFile(DSFTXTEdit.Text);   //    Open DSF.txt file
     progressbar1.Max := SL.Count;
 
     For x := 0 to SL.Count-1 do     //collect patches, their primitives and their vertices
@@ -418,44 +430,6 @@ begin
         SetExtents(aVertex);  //determine extents of mesh coverage
       end;
     end;
-
-//    Find BEGIN_PATCH
-   {x:= 0;
-
-    While x < SL.Count do
-    begin
-      CurrentLine := SL.Strings[x];
-      If ((ContainsText(CurrentLine, 'BEGIN_PATCH')) and (CurrentLine[length(CurrentLine)-2]='1')) then   //a mesh poly that is used for collision*
-      begin
-
-        repeat
-          inc(x);
-          If ContainsText(SL.Strings[x], 'BEGIN_PRIMITIVE') then
-          begin
-            PrimitiveList.Add(Get_Primitive(SL.Strings[x]));
-            inc(x);
-
-            repeat
-              If ContainsText(SL.Strings[x], 'PATCH_VERTEX') then
-              begin
-                If (CurrentLine[13]='0')  then          //check for land or sea patch based on BEGIN_PATCH line
-                  Sea_VertexList.Add(Get_PatchVertex(SL.Strings[x]))
-                else
-                  Land_VertexList.Add(Get_PatchVertex(SL.Strings[x]));
-              end;
-              inc(x);
-            until SL.Strings[x] = 'END_PRIMITIVE';
-
-          end;
-
-        until SL.Strings[x] = 'END_PATCH';
-
-      end;
-
-      inc(x);
-    end; }
-
-//    until EOF
 
     Memo1.Lines.Add(IntToStr(patch_count)+' Total Patches');
     Memo1.Lines.Add(IntToStr(prim_count)+' Total Primitives');
@@ -584,6 +558,7 @@ begin
   end;
   Memo1.Lines.Add('Done Conversion to Mesh!');}
 
+
   For aPatch in aDSF.children do
   begin
     aGroup := TOBJ_Group.create(aPatch);
@@ -592,8 +567,8 @@ begin
     begin
       for aVertex in aPrimitive.children do
         aGroup.Vertices.Add(aVertex);
-      v := 0;
 
+      v := 0;
       Case aPrimitive.prim_type of
       0:begin  //induvidual
 
@@ -649,11 +624,13 @@ begin
     aDSF := TDSF.Create;
     anOBJ := TOBJ.create;
     ExtractPrimitives;
-    progressbar2.Position := 1;
-    Convert2Triangles;
     if CombinePatchesCheckbox.Checked then
       CombinePatches;
+    progressbar2.Position := 1;
+    Convert2Triangles;
     progressbar2.Position := 2;
+    if RemoveDuplicateFacesCheckBox.checked then
+      RemoveDuplicateFaces;
     if AddDetailCheckbox.Checked then
       AddDetail;
     progressbar2.Position := 3;
@@ -1750,8 +1727,8 @@ begin
 
   for aGroup in anOBJ.children do
     begin
-      inc(g);
-      SL.Add(sLineBreak+'g Mesh'+IntToStr(g)+' '+aGroup.ter_def+' Model'+sLineBreak);
+//      inc(g);
+      SL.Add(sLineBreak+'g Mesh'+IntToStr(aGroup.id)+' '+aGroup.ter_def+' Model'+sLineBreak);
       for aVertex in aGroup.vertices do
         begin
           If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
@@ -1873,6 +1850,108 @@ begin
   If RunDSFToolCheckBox.Checked then
     DSFToolButton.Click;
 
+end;
+
+
+procedure TForm1.RemoveDuplicateFaces;
+
+var
+  aGroup: TOBJ_Group;
+  aFace: TOBJ_Face;
+  aFR, anotherFR: myFaceRecord;
+  FaceList: array of myFaceRecord;
+  i, f: integer;
+
+
+begin
+  /// Create list/array of all vertices in OBJ as records
+  /// Iterate through array, checking to see if each other record which is not of the same group and is not already a duplicate has verts spatially equal to this one.
+  /// When complete, remove all duplicate faces from groups by Face ID
+
+  // Create list/array of all vertices in OBJ as records
+  for aGroup in anOBJ.children do
+    begin
+      for aFace in aGroup.faces do
+      begin
+        With aFR do
+        begin
+          Group := aGroup.id;
+          Face := aFace.id;
+          v1 := aGroup.FindVertex(aFace.v1);
+          v2 := aGroup.FindVertex(aFace.v2);
+          v3 := aGroup.FindVertex(aFace.v3);
+          isDuplicate := false;
+        end;
+        SetLength(FaceList, high(FaceList)+1);
+        FaceList[high(FaceList)] := aFR;
+      end;
+    end;
+
+    // Iterate through array, checking to see if each other record which is not of the same group and is not already a duplicate has verts spatially equal to this one.
+    for i := 0 to high(FaceList) do
+    begin
+      for f := 0 to high(FaceList) do
+      begin
+        if not FaceList[i].isDuplicate then
+        begin
+          if (FaceList[i].Group = FaceList[f].Group) and (FaceList[f].isDuplicate = false) then
+          begin
+            if CompareFaces(FaceList[i], FaceList[f]) then
+              FaceList[f].isDuplicate := true
+          end;
+        end;
+      end;
+    end;
+
+    //remove non-duplicates from list.
+    {for i := high(FaceList) downto 0 do
+      begin
+        if not FaceList[i].isDuplicate then
+          FaceList[i] := nil;
+      end;  }
+
+    // When complete, remove all duplicate faces from groups by Face ID
+    for aFR in FaceList do
+    begin
+      if aFR.isDuplicate then
+      begin
+        for aGroup in anOBJ.children do
+          begin
+            if aGroup.id = aFR.Group then
+            begin
+              for aFace in aGroup.Faces do
+                begin
+                  if aFR.Face = aFace.id then
+                  begin
+                    aGroup.Faces.Remove(aFace);
+                    break;
+                  end;
+                end;
+            end;
+          end;
+      end;
+    end;
+
+end;
+
+function TForm1.CompareFaces(aFaceRecord, anotherFaceRecord: myFaceRecord): boolean;
+begin
+  result := false;
+  if (CompareVerts(aFaceRecord.v1, anotherFaceRecord.v1)) or (CompareVerts(aFaceRecord.v1, anotherFaceRecord.v2)) or (CompareVerts(aFaceRecord.v1, anotherFaceRecord.v3)) then
+  begin
+    if (CompareVerts(aFaceRecord.v2, anotherFaceRecord.v1)) or (CompareVerts(aFaceRecord.v2, anotherFaceRecord.v2)) or (CompareVerts(aFaceRecord.v2, anotherFaceRecord.v3)) then
+    begin
+      if (CompareVerts(aFaceRecord.v3, anotherFaceRecord.v1)) or (CompareVerts(aFaceRecord.v3, anotherFaceRecord.v2)) or (CompareVerts(aFaceRecord.v3, anotherFaceRecord.v3)) then
+        result := true;
+    end;
+  end;
+end;
+
+function TForm1.CompareVerts(aVertex, AnotherVertex: TVERTEX): boolean;
+begin
+  result := false;
+  if (aVertex.long=anotherVertex.long) and (aVertex.long=anotherVertex.lat) and (aVertex.height=anotherVertex.height) then
+    result := true;
 end;
 
 procedure TForm1.AddDetailButtonClick(Sender: TObject);
@@ -2044,54 +2123,80 @@ begin
 end;
 
 procedure TForm1.CombinePatches;
-var aGroup, aNewGroup: TOBJ_Group;
-    aNewOBJ: TOBJ;
-    ter_def: string;
-    f: integer;
+var aPatch, aNewPatch: TPATCH;
+    aNewDSF: TDSF;
+    ter_def, i: integer;
+    aPrimitive: TPRIMITIVE;
+    aVertex: TVERTEX;
 
 begin
 
-//  sort groups by terrain definition
-//  create new OBJ
-//  get ter_def of first group, create first group
+//  sort patches by terrain definition
+//  create new DSF
+//  get ter_def of first patch, create first new patch
 //  iterate list comparing ter_def
-//  add faces and verts of next group to newOBJ first group,
-//  continue unti next groups ter_def does not match ter_def of new first Group, then create new Group
-//  repeat until end of anOBJ.children
-//  assign new OBJ to old OBJ
+//  add primitves of next patch to newDSF first patch,
+//  continue unti next patch ter_def does not match ter_def of new first Pathc, then create new patch
+//  repeat until end of aDSF.children
+//  assign new DSF to old DSF
 
-  ter_def := '';
+  ter_def := -1;
 
-  ResetVertReferences(-1, anOBJ, f);
-
-  anOBJ.children.Sort(TComparer<TOBJ_Group>.Construct(
-  function (const L,R: TOBJ_Group): integer
+  aDSF.children.Sort(TComparer<TPATCH>.Construct(
+  function (const L,R: TPATCH): integer
   begin
-    result := CompareStr(L.ter_def, R.ter_def);
+    result := CompareInt(L.ter_def, R.ter_def);
   end
   ));
 
-  aNewOBJ := TOBJ.create;
-  aNewOBJ.children := TObjectList<TOBJ_Group>.create;
+  aNewDSF := TDSF.create;
+  aNewDSF.children := TObjectList<TPATCH>.create;
 
-  for aGroup in anOBJ.children do
+//  for i := 0 to aDSF.children.count-1 do
+  for aPatch in aDSF.children do
     begin
-      if aGroup.ter_def <> ter_def then
+//      aPatch := aDSF.children[i];
+      if aPatch.ter_def <> ter_def then
       begin
-        ter_def := aGroup.ter_def;
-        aNewGroup := aGroup;
-        aNewOBJ.children.add(aNewGroup);
+        ter_def := aPATCH.ter_def;
+        aNewPatch := TPATCH.create('BEGIN_PATCH '+IntToStr(ter_def)+' 0.000000 -1.000000 1 7');
+        aNewPatch.children.AddRange(aPatch.children);
+        aNewDSF.children.add(aNewPatch);
       end
       else
-      begin
-        aNewGroup.vertices.addrange(aGroup.Vertices);
-        aNewGroup.faces.addrange(aGroup.Faces);
-      end;
+        aNewPatch.children.addrange(aPatch.children);
     end;
 
-  ResetVertReferences(1, aNewOBJ, f);
+  //sort Patches
+  aNewDSF.children.Sort(TComparer<TPATCH>.Construct(
+  function (const L,R: TPATCH): integer
+  begin
+    result := CompareInt(L.id, R.id);
+  end
+  ));
 
-  anOBJ := aNewOBJ;
+  for aPatch in aNewDSF.children do
+    begin
+      //sort primitives inside patches first
+      aPatch.children.Sort(TComparer<TPRIMITIVE>.Construct(
+      function (const L,R: TPRIMITIVE): integer
+      begin
+        result := CompareInt(L.id, R.id);
+      end
+      ));
+      //then vertices inside primitives
+      for aPrimitive in aPatch.children do
+        begin
+          aPrimitive.children.Sort(TComparer<TVERTEX>.Construct(
+          function (const L,R: TVERTEX): integer
+          begin
+            result := CompareInt(L.id, R.id);
+          end
+          ));
+        end;
+    end;
+
+  aDSF := aNewDSF;
 
 end;
 
@@ -2163,10 +2268,10 @@ begin
     progressbar1.max := anOBJ.children.Count;
     for aGroup in anOBJ.children do
     begin
-        NewVerts := TOBJ_Group.create('temp 0');
+        NewVerts := TOBJ_Group.create('g Mesh0 0 temp');
 //      if aGroup.ter_def <>  '0' then
 //      begin
-        anotherGroup := TOBJ_Group.Create('anotherGroup 0');
+        anotherGroup := TOBJ_Group.Create('g Mesh0 0 anotherGroup');
         anotherGroup.ter_def := aGroup.ter_def;
         anotherGroup.Vertices := aGroup.Vertices;              //new vertices will be added to originals
 

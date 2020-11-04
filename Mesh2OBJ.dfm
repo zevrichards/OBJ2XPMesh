@@ -55,9 +55,9 @@ object Form1: TForm1
       end
       object Memo1: TMemo
         Left = 3
-        Top = 152
+        Top = 192
         Width = 828
-        Height = 177
+        Height = 137
         ScrollBars = ssVertical
         TabOrder = 1
       end
@@ -120,7 +120,7 @@ object Form1: TForm1
       end
       object AddDetailCheckBox: TCheckBox
         Left = 3
-        Top = 129
+        Top = 163
         Width = 97
         Height = 17
         Caption = 'Add Detail'
@@ -128,13 +128,21 @@ object Form1: TForm1
       end
       object CombinePatchesCheckBox: TCheckBox
         Left = 3
-        Top = 106
+        Top = 140
         Width = 366
         Height = 17
         Caption = 
           'Combine patches with the same terrain definitions into single gr' +
           'oups.'
         TabOrder = 9
+      end
+      object RemoveDuplicateFacesCheckbox: TCheckBox
+        Left = 3
+        Top = 117
+        Width = 342
+        Height = 17
+        Caption = 'Remove Duplicate Faces (WARNING: SLOW!)'
+        TabOrder = 10
       end
     end
     object OBJ2DSFPage: TTabSheet

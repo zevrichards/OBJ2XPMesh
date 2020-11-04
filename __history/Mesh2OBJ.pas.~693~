@@ -51,10 +51,18 @@ end;
 //end;
 
 type TOBJ_Face = Class
+  id: integer;
   v1,v2,v3: integer;
   Group: string;
   constructor Create(v1,v2,v3: integer; group: string);
 End;
+
+type myFaceRecord = record
+  Group: integer;
+  Face: integer;
+  v1,v2,v3: TVERTEX;
+  isDuplicate: boolean
+end;
 
 type TOBJ_Group = class
   id: integer;
@@ -150,6 +158,7 @@ type
     ProgressBar2: TProgressBar;
     Memo4: TMemo;
     CombinePatchesCheckBox: TCheckBox;
+    RemoveDuplicateFacesCheckbox: TCheckBox;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -182,7 +191,7 @@ type
     procedure BeforeDestruction;  override;
     procedure OutputDirComboExit(Sender: TObject);
     procedure TXTComboChange(Sender: TObject);
-	procedure ReadElevations(FileName: string; out rows_out: integer; upper, lower: single; interpolate: boolean=true);
+	  procedure ReadElevations(FileName: string; out rows_out: integer; upper, lower: single; interpolate: boolean=true);
     function FindElevation(aVertex: TVertex; total_rows: integer): word;
     procedure SetExtents(aVertex: TVERTEX);
     procedure ElevationCheckBoxClick(Sender: TObject);
@@ -190,6 +199,9 @@ type
     procedure ResetVertReferences(operation: integer; myOBJ: TOBJ; out face_count: integer);
     procedure AddDetail;
     procedure CombinePatches;
+    procedure RemoveDuplicateFaces;
+    function CompareFaces(aFaceRecord, anotherFaceRecord: myFaceRecord): boolean;
+    function CompareVerts(aVertex, AnotherVertex: TVERTEX): boolean;
     procedure AddDetailButtonClick(Sender: TObject);
     procedure LoadOBJButtonClick(Sender: TObject);
   private
@@ -366,6 +378,7 @@ constructor TOBJ_Face.Create(v1,v2,v3: integer; Group: string);
 begin
   inc(face_count);
 
+  self.id := face_count;
   self.v1 := v1;
   self.v2 := v2;
   self.v3 := v3;
@@ -616,6 +629,8 @@ begin
     progressbar2.Position := 1;
     Convert2Triangles;
     progressbar2.Position := 2;
+    if RemoveDuplicateFacesCheckBox.checked then
+      RemoveDuplicateFaces;
     if AddDetailCheckbox.Checked then
       AddDetail;
     progressbar2.Position := 3;
@@ -1837,6 +1852,120 @@ begin
 
 end;
 
+
+procedure TForm1.RemoveDuplicateFaces;
+
+var
+  aGroup: TOBJ_Group;
+  aFace: TOBJ_Face;
+  aFR, anotherFR: myFaceRecord;
+  FaceList: array of myFaceRecord;
+  i, f, dups: integer;
+
+
+begin
+  /// Create list/array of all vertices in OBJ as records
+  /// Iterate through array, checking to see if each other record which is not of the same group and is not already a duplicate has verts spatially equal to this one.
+  /// When complete, remove all duplicate faces from groups by Face ID
+
+  // Create list/array of all vertices in OBJ as records
+  SetLength(FaceList, 0);
+  dups:=0;
+  Memo1.Lines.Add('Removing duplicate faces...');
+  for aGroup in anOBJ.children do
+    begin
+      for aFace in aGroup.faces do
+      begin
+        With aFR do
+        begin
+          Group := aGroup.id;
+          Face := aFace.id;
+          v1 := aGroup.FindVertex(aFace.v1);
+          v2 := aGroup.FindVertex(aFace.v2);
+          v3 := aGroup.FindVertex(aFace.v3);
+          isDuplicate := false;
+        end;
+        SetLength(FaceList, length(FaceList)+1);
+        FaceList[length(FaceList)-1] := aFR;
+      end;
+    end;
+    Memo1.Lines.Add('Found '+IntToStr(length(FaceList))+' total faces...');
+
+    // Iterate through array, checking to see if each other record which is not of the same group and is not already a duplicate has verts spatially equal to this one.
+    for i := 0 to high(FaceList) do
+    begin
+      for f := 0 to high(FaceList) do
+      begin
+        if FaceList[i].Face<>FaceList[f].Face then  //make sure we are not comparing a face to itself
+        begin
+          if not FaceList[i].isDuplicate then   //make sure we don't already know that this is a duplicate
+          begin
+            if (FaceList[i].Group = FaceList[f].Group) and (FaceList[f].isDuplicate = false) then   //make sure that the faces are not in the same group and that the other face is not already known to be a duplicate
+            begin
+              if CompareFaces(FaceList[i], FaceList[f]) then  //compare the verts of the faces
+              begin
+                FaceList[f].isDuplicate := true;
+                inc(dups);
+              end;
+            end;
+          end;
+        end;
+      end;
+    end;
+    Memo1.Lines.Add('Found '+IntToStr(dups)+' duplicate faces...');
+
+    //remove non-duplicates from list.
+    {for i := high(FaceList) downto 0 do
+      begin
+        if not FaceList[i].isDuplicate then
+          FaceList[i] := nil;
+      end;  }
+
+    // When complete, remove all duplicate faces from groups by Face ID
+    for aFR in FaceList do
+    begin
+      if aFR.isDuplicate then
+      begin
+        for aGroup in anOBJ.children do
+          begin
+            if aGroup.id = aFR.Group then
+            begin
+              for aFace in aGroup.Faces do
+                begin
+                  if aFR.Face = aFace.id then
+                  begin
+                    aGroup.Faces.Remove(aFace);
+                    break;
+                  end;
+                end;
+            end;
+          end;
+      end;
+    end;
+    Memo1.Lines.Add('Finished removing duplicate faces.');
+
+end;
+
+function TForm1.CompareFaces(aFaceRecord, anotherFaceRecord: myFaceRecord): boolean;
+begin
+  result := false;
+  if (CompareVerts(aFaceRecord.v1, anotherFaceRecord.v1)) or (CompareVerts(aFaceRecord.v1, anotherFaceRecord.v2)) or (CompareVerts(aFaceRecord.v1, anotherFaceRecord.v3)) then
+  begin
+    if (CompareVerts(aFaceRecord.v2, anotherFaceRecord.v1)) or (CompareVerts(aFaceRecord.v2, anotherFaceRecord.v2)) or (CompareVerts(aFaceRecord.v2, anotherFaceRecord.v3)) then
+    begin
+      if (CompareVerts(aFaceRecord.v3, anotherFaceRecord.v1)) or (CompareVerts(aFaceRecord.v3, anotherFaceRecord.v2)) or (CompareVerts(aFaceRecord.v3, anotherFaceRecord.v3)) then
+        result := true;
+    end;
+  end;
+end;
+
+function TForm1.CompareVerts(aVertex, AnotherVertex: TVERTEX): boolean;
+begin
+  result := false;
+  if (aVertex.long=anotherVertex.long) and (aVertex.lat=anotherVertex.lat) and (aVertex.height=anotherVertex.height) then
+    result := true;
+end;
+
 procedure TForm1.AddDetailButtonClick(Sender: TObject);
 var state, match: boolean;
     index: integer;
@@ -2151,10 +2280,10 @@ begin
     progressbar1.max := anOBJ.children.Count;
     for aGroup in anOBJ.children do
     begin
-        NewVerts := TOBJ_Group.create('temp 0');
+        NewVerts := TOBJ_Group.create('g Mesh0 0 temp');
 //      if aGroup.ter_def <>  '0' then
 //      begin
-        anotherGroup := TOBJ_Group.Create('anotherGroup 0');
+        anotherGroup := TOBJ_Group.Create('g Mesh0 0 anotherGroup');
         anotherGroup.ter_def := aGroup.ter_def;
         anotherGroup.Vertices := aGroup.Vertices;              //new vertices will be added to originals
 
