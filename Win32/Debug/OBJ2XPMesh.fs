@@ -1,10 +1,10 @@
-ElevationCheckBox=-1
-InterpolateCheckBox1=-1
+ElevationCheckBox=0
+InterpolateCheckBox1=0
 AddDetailCheckBox=-1
 CombinePatchesCheckBox=-1
-RemoveDuplicateFacesCheckbox=-1
+RemoveDuplicateFacesCheckbox=0
 CombinedOBJCheckBox=-1
-InterpolateCheckBox2=0
+InterpolateCheckBox2=-1
 MatchCheckBox=-1
 RunDSFToolCheckBox=0
 OutputDirCombo=2

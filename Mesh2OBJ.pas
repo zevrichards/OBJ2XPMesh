@@ -78,6 +78,7 @@ end;
 type TOBJ = class
   children: TList<TOBJ_Group>;
   constructor create;
+  function FindVertex(id: integer): TVERTEX;
 end;
 
 type TSection = class
@@ -268,8 +269,26 @@ begin
 end;
 
 constructor TOBJ_Group.Create(s: string);
+var MeshID: string;
+    i: integer;
 begin
-  self.id := StrToInt(RightStr(s.Split(OBJ_Delims)[1], Length(s.Split(OBJ_Delims)[1])-4));
+  For i:= 1 to 16 do
+  begin
+    MeshID := s.Split(OBJ_Delims)[i];
+    If ContainsText(MeshID, 'Mesh') then
+      break;
+  end;
+  If not ContainsText(MeshID, 'Mesh') then
+  begin
+    MessageDlg('Cannot find the MeshID from line:'+sLineBreak+s+
+                sLineBreak+'when attempting to create a new OBJ Group.'+sLineBreak+
+                'Please ensure that your Groups are properly named and contain the text "Mesh*" where * is the ID number of the group, to ensure proper processing.'+
+                sLineBreak+'Exiting!',
+               mtError,mbOKCancel,0, mbOK);
+    abort
+  end;
+
+  self.id := StrToInt(MeshID[pos('Mesh', MeshID)+4]);
   self.ter_def := s.Split(OBJ_Delims)[2];
   self.Faces := TObjectList<TOBJ_Face>.create;
   self.Vertices := TObjectList<TVERTEX>.create;
@@ -300,6 +319,19 @@ begin
       result := aVertex;
       break;
     end;
+  end;
+end;
+
+function TOBJ.FindVertex(id: Integer): TVERTEX;
+var aGroup: TOBJ_Group;
+
+begin
+  result := nil;
+  For aGroup in self.children do
+  begin
+    result := aGroup.FindVertex(id);
+    If result <> nil then   //found
+      break;
   end;
 end;
 
@@ -805,19 +837,13 @@ begin
   Construct count/3 type 0 (triangle) primitives from mesh
   insert all patch vertices in groups of 3s}
 
-  //  OBJ_Vertex_list := TObjectList<TVertex>.create;
-  //  OBJ_Face_List := TObjectList<TOBJ_Face>.create;
-  //  ExtractPrimitives;
     DeletePrimitives(DSF_SL);
     progressbar2.Position := 1;
     CollectOBJ(Combined_OBJ_SL);
     progressbar2.Position := 2;
-//    Convert2DSF(anOBJ);
     EditDSF(DSF_SL);
     progressbar2.Position := 3;
 
-//    OBJ2DSF(DSF_SL, Combined_OBJ_SL);
-  //  Convert2Triangles;
   finally
     DSF_SL.Free;
     Combined_OBJ_SL.Free;
@@ -947,6 +973,10 @@ begin
     If ContainsText(CurrentLine,'v ') then
     begin
       aVertex := TVERTEX.create(CurrentLine, lon, lat, height);
+
+      If lat = 3 then
+        aVertex.lat := -aVertex.lat;    //account for +X+Z-Y format
+
       aGroup.vertices.add(aVertex);
     end;
 
@@ -960,6 +990,8 @@ begin
   Memo2.Lines.Add('Finished collecting groups, verts and faces.');
 
   //Set heights of all water vertices from RASTER RAW if we are using it as a source.
+  //Water Verts must always have their elevations hard coded into the DSF
+  //If the source is OBJ, then they will have been pulled directly from the OBJ elevations.
   If ElevationSourceRadioGroup.ItemIndex = 0 then
   begin
     If RAW_Array = nil then
@@ -975,6 +1007,11 @@ begin
       begin
         For aVertex in aGroup.vertices do
           aVertex.height := FindElevation(aVertex, RAW_rows);
+      end
+      else
+      begin
+        For aVertex in aGroup.vertices do
+          aVertex.height := -32768;
       end;
     end;
     Memo2.Lines.add('Finished applying elevations to water verts.');
@@ -999,8 +1036,8 @@ begin
                 begin
                   If (Round(aVertex.long) = Round(anotherVertex.long)) and (Round(aVertex.lat) = Round(anotherVertex.lat)) then
                   begin
-                    aVertex.height := anotherVertex.height;
                     inc(x,2);
+                    aVertex.height := anotherVertex.height;
                     break;
                 end;
               end;
@@ -1018,6 +1055,9 @@ var aVertex: TVERTEX;
     aFace: TOBJ_Face;
     aGroup: TOBJ_Group;
     x: integer;
+
+//label RetryFindVertex1, RetryFindVertex2, RetryFindVertex3; //I know this is messy but its a quick dirty way to redo code that seems to fail sometimes and not others.
+
 begin
   {Begin insertion of patches and primitives}
 
@@ -1026,9 +1066,10 @@ begin
 
   Memo2.Lines.Add('Inserting edited mesh...');
 
-
+  ProgressBar1.Max := anOBJ.children.Count;
   For aGroup in anOBJ.children do
   begin
+    ProgressBar1.Position := ProgressBar1.Position+1;
     DSF_SL.Insert(x,'BEGIN_PATCH '+aGroup.ter_def+' 0.000000 -1.000000 1 7');
     inc(x);
     //begin primitive
@@ -1037,15 +1078,45 @@ begin
 
     For aFace in aGroup.faces do
     begin
-      aVertex := aGroup.FindVertex(aFace.v1);
-      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
-      inc(x);
-
-      aVertex := aGroup.FindVertex(aFace.v2);
-      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
-      inc(x);
-
+//      RetryFindVertex3:
       aVertex := aGroup.FindVertex(aFace.v3);
+//      if aVertex = nil then       //if not found within the group then search within the entire OBJ. This is slower.
+//      begin
+//        aVertex := anOBJ.FindVertex(aFace.v3);
+//        If aVertex = nil then
+//        begin
+//          If MessageDlg('Could not find vertex '+IntToStr(aFace.v3)+' in list. Try again?', mtWarning, mbOkCancel, 0) = mrOK then
+//            goto RetryFindVertex3; //I know this is messy but its a quick dirty way to redo code that seems to fail sometimes and not others.
+//        end;
+//      end;
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+      inc(x);
+
+//      RetryFindVertex2:
+      aVertex := aGroup.FindVertex(aFace.v2);
+//      if aVertex = nil then   //if not found within the group then search within the entire OBJ. This is slower.
+//      begin
+//        aVertex := anOBJ.FindVertex(aFace.v2);
+//        If aVertex = nil then
+//        begin
+//          If MessageDlg('Could not find vertex '+IntToStr(aFace.v2)+' in list. Try again?', mtWarning, mbOkCancel, 0) = mrOK then
+//            goto RetryFindVertex2; //I know this is messy but its a quick dirty way to redo code that seems to fail sometimes and not others.
+//        end;
+//      end;
+      DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
+      inc(x);
+
+//      RetryFindVertex1:
+      aVertex := aGroup.FindVertex(aFace.v1);
+//      if aVertex = nil then   //if not found within the group then search within the entire OBJ. This is slower.
+//      begin
+//        aVertex := anOBJ.FindVertex(aFace.v1);
+//        If aVertex = nil then
+//        begin
+//          If MessageDlg('Could not find vertex '+IntToStr(aFace.v1)+' in list. Try again?', mtWarning, mbOkCancel, 0) = mrOK then
+//            goto RetryFindVertex1; //I know this is messy but its a quick dirty way to redo code that seems to fail sometimes and not others.
+//        end;
+//      end;
       DSF_SL.Insert(x,'PATCH_VERTEX'+#9+FloatToStrF(aVertex.long/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.lat/100000, ffFixed, 13, 9)+#9+FloatToStrF(aVertex.height, ffFixed, 13, 9)+#9+'-0.000015259'+#9+'-0.000015259'+#9+'1.000000000'+#9+'1.000000000');
       inc(x);
     end;
@@ -1075,8 +1146,9 @@ begin
     DSF_SL.Insert(x, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards');
   end;
 
-  Memo2.Lines.Add('Saving new DSF...');
+  Memo2.Lines.Add('Saving new DSF.txt...');
   DSF_SL.SaveToFile(StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
+  Memo2.Lines.Add('File saved as '+StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
 end;
 
 procedure TForm1.OutputDirComboExit(Sender: TObject);
@@ -1422,8 +1494,9 @@ begin
       DSF_SL.Insert(x, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards');
     end;
 
-    Memo2.Lines.Add('Saving new DSF...');
+    Memo2.Lines.Add('Saving new DSF.txt...');
     DSF_SL.SaveToFile(StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
+    Memo2.Lines.Add('File saved as '+StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
   finally
     aVertex.Free;
 //    IDX_List.Free;
@@ -1893,15 +1966,16 @@ begin
     Memo1.Lines.Add('Found '+IntToStr(length(FaceList))+' total faces...');
     Memo1.Lines.Add('Searching for duplicates...');
 
-    ProgressBar1.Max := length(FaceList)*length(FaceList);
+    ProgressBar1.Max := length(FaceList);
     ProgressBar1.Position := 0;
 
     // Iterate through array, checking to see if each other record which is not of the same group and is not already a duplicate has verts spatially equal to this one.
     for i := 0 to high(FaceList) do
     begin
+      ProgressBar1.Position := ProgressBar1.Position +1;
       for f := 0 to high(FaceList) do
       begin
-        ProgressBar1.Position := progressbar1.Position +1;
+//        ProgressBar1.Position := Trunc(((i*f)/(length(FaceList)*length(FaceList)))*100);
         if FaceList[i].Face<>FaceList[f].Face then  //make sure we are not comparing a face to itself
         begin
           if not FaceList[i].isDuplicate then   //make sure we don't already know that this is a duplicate
@@ -2051,7 +2125,7 @@ begin
 
   FS:= TFileStream.Create(FileName, fmopenread + fmShareDenyNone{ or fmShareDenyWrite});
   rows_out := trunc(sqrt(FS.Size/8)*2);  //total_rows=total_columns
-  progressbar1.Max := rows_out*rows_out;
+  progressbar1.Max := rows_out;
   progressbar1.Position := 0;
   invalid_data := TList<Tinvalid>.create;
 
@@ -2061,12 +2135,12 @@ begin
 
     For r := rows_out downto 1 do
     begin
+      progressbar1.Position := progressbar1.Position + 1;
       For c := 1 to rows_out do
       begin
         If FS.Read(d, sizeof(d)) > 0 then
         begin
           RAW_Array[r,c] := d;
-          progressbar1.Position := progressbar1.Position + 1;;
           if (d > upper) or (d < lower) then
           begin
             Value.indices[0] := r;
