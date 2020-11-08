@@ -26,10 +26,14 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 395
-    ActivePage = DSF2OBJPage
+    ActivePage = OBJ2DSFPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object Label9: TLabel
         Left = 319
         Top = 75
@@ -55,9 +59,9 @@ object Form1: TForm1
       end
       object Memo1: TMemo
         Left = 3
-        Top = 152
+        Top = 192
         Width = 828
-        Height = 177
+        Height = 137
         ScrollBars = ssVertical
         TabOrder = 1
       end
@@ -76,8 +80,6 @@ object Form1: TForm1
         Width = 153
         Height = 17
         Caption = 'Burn Elevations into OBJ'
-        Checked = True
-        State = cbChecked
         TabOrder = 3
         OnClick = ElevationCheckBoxClick
       end
@@ -96,8 +98,6 @@ object Form1: TForm1
         Width = 161
         Height = 17
         Caption = 'Interpolate for invalid data.'
-        Checked = True
-        State = cbChecked
         TabOrder = 5
       end
       object UpperEdit: TEdit
@@ -120,7 +120,7 @@ object Form1: TForm1
       end
       object AddDetailCheckBox: TCheckBox
         Left = 3
-        Top = 129
+        Top = 163
         Width = 97
         Height = 17
         Caption = 'Add Detail'
@@ -128,13 +128,23 @@ object Form1: TForm1
       end
       object CombinePatchesCheckBox: TCheckBox
         Left = 3
-        Top = 106
+        Top = 140
         Width = 366
         Height = 17
         Caption = 
           'Combine patches with the same terrain definitions into single gr' +
           'oups.'
+        Checked = True
+        State = cbChecked
         TabOrder = 9
+      end
+      object RemoveDuplicateFacesCheckbox: TCheckBox
+        Left = 3
+        Top = 117
+        Width = 342
+        Height = 17
+        Caption = 'Remove Duplicate Faces (WARNING: SLOW!)'
+        TabOrder = 10
       end
     end
     object OBJ2DSFPage: TTabSheet
@@ -216,7 +226,7 @@ object Form1: TForm1
         TabOrder = 2
       end
       object OBJ2DSFButton: TButton
-        Left = 355
+        Left = 347
         Top = 339
         Width = 121
         Height = 25
@@ -430,6 +440,10 @@ object Form1: TForm1
     object DSFToolTabSheet: TTabSheet
       Caption = 'DSF Tool'
       ImageIndex = 2
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object Label7: TLabel
         Left = 40
         Top = 116
@@ -537,6 +551,10 @@ object Form1: TForm1
     object MiscTabSheet: TTabSheet
       Caption = 'Misc'
       ImageIndex = 3
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object LoadOBJEdit: TEdit
         Left = 109
         Top = 14
