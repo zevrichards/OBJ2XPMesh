@@ -784,23 +784,20 @@ begin
     Memo2.Lines.Add('Removing original mesh...');
     progressbar1.Position := 0;
     progressbar1.Max := DSF_SL.Count;
-    x := GetHeaderCommentSize(DSF_SL, '#');
-    while x < DSF_SL.Count-1 do
+    x := DSF_SL.Count-1;       //start deleting from bottom so that X is decremented and you do not skip items to delete from the top.
+    while x > 0 do
     begin
       FoundCollisionPatch := false;
       repeat
-         inc(x);
+         dec(x);
          CurrentLine := DSF_SL.Strings[x];
          if CurrentLine<>'' then
          begin
-           if (CurrentLine.Split(Delimiters)[0] = 'BEGIN_PATCH') then
-           begin
-            if (CurrentLine.Split(Delimiters)[4] = '1') then
+           if (CurrentLine.Split(Delimiters)[0] = 'BEGIN_PATCH') and (CurrentLine.Split(Delimiters)[4] = '1') then
               FoundCollisionPatch := true
-           end;
          end;
 
-      until (FoundCollisionPatch) or (x >= DSF_SL.Count-1);
+      until (FoundCollisionPatch) or (x <= 0);
 
       if FoundCollisionPatch then
       begin
@@ -812,7 +809,8 @@ begin
         for z := y downto x do
           DSF_SL.Delete(z);
       end;
-      progressbar1.Position := x;
+      progressbar1.Position := DSF_SL.Count-x;
+      Application.ProcessMessages;
     end;
 //    x:= DSF_SL.count-1;
 //    While x > 0 do
@@ -939,7 +937,8 @@ begin
       aFace := TOBJ_Face.create(StrToInt(CurrentLine.split(Delimiters)[1]), StrToInt(CurrentLine.split(Delimiters)[v2]), StrToInt(CurrentLine.split(Delimiters)[v3]), aGroup.ter_def);
       aGroup.Faces.add(aFace);
     end;
-    progressbar1.Position := progressbar1.Position + 1;;
+    progressbar1.Position := progressbar1.Position + 1;
+    Application.ProcessMessages;
   end;
   Memo2.Lines.Add('Finished collecting groups, verts and faces.');
 
@@ -970,6 +969,7 @@ begin
           aVertex.height := -32768;
       end;
       progressbar1.Position := progressbar1.Position +1;
+      Application.ProcessMessages;
     end;
     Memo2.Lines.add('Finished applying elevations to water verts.');
   end;
@@ -1029,6 +1029,7 @@ begin
   For aGroup in anOBJ.children do
   begin
     ProgressBar1.Position := ProgressBar1.Position+1;
+    Application.ProcessMessages;
     DSF_SL.Insert(x,'BEGIN_PATCH '+aGroup.ter_def+' 0.000000 -1.000000 1 7');
     inc(x);
     //begin primitive
@@ -1749,6 +1750,7 @@ begin
     for i := 0 to high(FaceList) do
     begin
       ProgressBar1.Position := ProgressBar1.Position +1;
+      Application.ProcessMessages;
       for f := 0 to high(FaceList) do
       begin
 //        ProgressBar1.Position := Trunc(((i*f)/(length(FaceList)*length(FaceList)))*100);
@@ -1908,6 +1910,7 @@ begin
     For r := rows_out downto 1 do
     begin
       progressbar1.Position := progressbar1.Position + 1;
+      Application.ProcessMessages;
       For c := 1 to rows_out do
       begin
         If FS.Read(d, sizeof(d)) > 0 then
@@ -1950,7 +1953,8 @@ begin
       new_value := new_Value div 4;
 
       Raw_Array[r,c] := new_value;
-      progressbar1.Position := progressbar1.Position + 1;;
+      progressbar1.Position := progressbar1.Position + 1;
+      Application.ProcessMessages;
     end;
   end;
 
@@ -2190,6 +2194,7 @@ begin
 
 //      end;
       progressbar1.Position := progressbar1.Position + 1;
+      Application.ProcessMessages;
       NewVerts.free;
     end;
 
