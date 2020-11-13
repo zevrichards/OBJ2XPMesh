@@ -23,6 +23,10 @@ object Form1: TForm1
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object Label9: TLabel
         Left = 319
         Top = 75
@@ -413,6 +417,10 @@ object Form1: TForm1
     object DSFToolTabSheet: TTabSheet
       Caption = 'DSF Tool'
       ImageIndex = 2
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object Label7: TLabel
         Left = 40
         Top = 116
@@ -512,6 +520,10 @@ object Form1: TForm1
     object MiscTabSheet: TTabSheet
       Caption = 'Misc'
       ImageIndex = 3
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object LoadOBJEdit: TEdit
         Left = 136
         Top = 14

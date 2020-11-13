@@ -814,7 +814,7 @@ begin
          CurrentLine := DSF_SL.Strings[x];
          if CurrentLine<>'' then
          begin
-           if (CurrentLine.Split(Delimiters)[0] = 'BEGIN_PATCH') and (CurrentLine.Split(Delimiters)[4] = '1') then
+           if (CurrentLine.Split(Delimiters)[0] = 'BEGIN_PATCH'){ and (CurrentLine.Split(Delimiters)[4] = '1')} then
               FoundCollisionPatch := true
          end;
 
