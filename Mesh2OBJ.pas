@@ -89,11 +89,9 @@ type
     DSF2OBJPage: TTabSheet;
     DSFButton: TButton;
     DSFTXTEdit: TEdit;
-    Memo1: TMemo;
     OBJ2DSFPage: TTabSheet;
     CombinedOBJEdit: TEdit;
     CombinedOBJButton: TButton;
-    Memo2: TMemo;
     Convert2OBJButton: TButton;
     OBJ2DSFButton: TButton;
     DSF2Edit: TEdit;
@@ -115,10 +113,8 @@ type
     Label3: TLabel;
     Label4: TLabel;
     ScaleEdit: TEdit;
-    Label5: TLabel;
     Label6: TLabel;
     DSFToolTabSheet: TTabSheet;
-    Memo3: TMemo;
     DSFToolButton: TButton;
     TXTButton: TButton;
     DSFButton2: TButton;
@@ -151,9 +147,12 @@ type
     MatchCheckBox: TCheckBox;
     ProgressBar1: TProgressBar;
     ProgressBar2: TProgressBar;
-    Memo4: TMemo;
     CombinePatchesCheckBox: TCheckBox;
     RemoveDuplicateFacesCheckbox: TCheckBox;
+    ChangeElevationButton: TButton;
+    RasterButton: TButton;
+    RasterEdit: TEdit;
+    Memo: TMemo;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -193,6 +192,9 @@ type
     function CompareVerts(aVertex, AnotherVertex: TVERTEX): boolean;
     procedure AddDetailButtonClick(Sender: TObject);
     procedure LoadOBJButtonClick(Sender: TObject);
+    procedure MemoChange(Sender: TObject);
+    procedure RasterButtonClick(Sender: TObject);
+    procedure ChangeElevationButtonClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -417,15 +419,17 @@ begin
 
   progressbar1.Position := 0;
 
-  Memo1.Lines.Add('Starting Extraction of Primitives...');
+  Memo.Lines.Add('Starting Extraction of Primitives...');
 
   SL := TStringList.Create;
   try
     SL.LoadFromFile(DSFTXTEdit.Text);   //    Open DSF.txt file
     progressbar1.Max := SL.Count;
 
-    For x := 0 to SL.Count-1 do     //collect patches, their primitives and their vertices
+    x:= 0;
+    While x <= SL.Count-1 do     //collect patches, their primitives and their vertices
     begin
+
       CurrentLine := SL.Strings[x];
       If ContainsText(CurrentLine, 'BEGIN_PATCH') then
       begin
@@ -433,6 +437,13 @@ begin
         begin
           aPatch := TPATCH.create(CurrentLine);
           aDSF.children.Add(aPatch);
+        end
+        else
+        begin
+          //skip this entire patch
+          repeat
+            inc(x);
+          until ContainsText(CurrentLine, 'END_PATCH');
         end;
       end;
 
@@ -449,15 +460,16 @@ begin
         aPrimitive.children.add(aVertex);
         SetExtents(aVertex);  //determine extents of mesh coverage
       end;
+      inc(x);
     end;
 
-    Memo1.Lines.Add(IntToStr(patch_count)+' Total Patches');
-    Memo1.Lines.Add(IntToStr(prim_count)+' Total Primitives');
-   Memo1.Lines.Add(IntToStr(vert_count)+' Total Vertices');
+    Memo.Lines.Add(IntToStr(patch_count)+' Total Patches');
+    Memo.Lines.Add(IntToStr(prim_count)+' Total Primitives');
+   Memo.Lines.Add(IntToStr(vert_count)+' Total Vertices');
 
   finally
     SL.Free;
-    Memo1.Lines.Add('Done Extracting Primitives.');
+    Memo.Lines.Add('Done Extracting Primitives.');
   end;
 end;
 
@@ -478,19 +490,19 @@ begin
 
   If (RAW_Array = nil) or (RAW_rows=0) then
   begin
-    Memo1.Lines.add('Reading elevations from RAW...');
+    Memo.Lines.add('Reading elevations from RAW...');
     ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, 	StrToFloat(UpperEdit.Text), StrToFloat(LowerEdit.Text), InterpolateCheckbox1.checked);
-    Memo1.Lines.Add('Finished reading elevations.');
+    Memo.Lines.Add('Finished reading elevations.');
   end;
 
 
-  Memo1.Lines.add('Burning elevations into OBJ...');
+  Memo.Lines.add('Burning elevations into OBJ...');
   for aGroup in anOBJ.children do
   begin
     for aVertex in aGroup.vertices do
       aVertex.height := FindElevation(aVertex, RAW_rows);
   end;
-  Memo1.Lines.add('Finished burning elevations.');
+  Memo.Lines.add('Finished burning elevations.');
 
 end;
 
@@ -536,6 +548,11 @@ begin
   end;
 end;
 
+procedure TForm1.MemoChange(Sender: TObject);
+begin
+
+end;
+
 //we will be ignoring the types of primitives for now
 //convert all Primitives into mesh triangles
 procedure TForm1.Convert2Triangles;
@@ -546,7 +563,7 @@ var aPrimitive: TPRIMITIVE;
     v: integer;
 begin
 
-  Memo1.Lines.Add('Starting conversion of primitives to trianglulated Mesh...');
+  Memo.Lines.Add('Starting conversion of primitives to trianglulated Mesh...');
   For aPatch in aDSF.children do
   begin
     aGroup := TOBJ_Group.create(aPatch);
@@ -581,7 +598,7 @@ begin
       2:begin
 //          TriangleFan(aPrimitive.id);
         end;
-      else Memo1.Lines.Add('Incorrect Primitive type. Expected integer 0,1 or 2. Got '+IntToStr(aPrimitive.prim_type))
+      else Memo.Lines.Add('Incorrect Primitive type. Expected integer 0,1 or 2. Got '+IntToStr(aPrimitive.prim_type))
     End;
     end;
   end;
@@ -627,6 +644,7 @@ begin
     ExportOBJ(100000);
     progressbar2.Position := 6;
   finally
+    Memo.Lines.Add('*********************************************************');
     aDSF.free;
     anOBJ.free;
   end;
@@ -679,17 +697,17 @@ begin
   log := '';
   If TXTCombo.Text <> '' then
   begin
-    Memo3.Lines.Add('Running DSFTool -text2dsf "'+TXTCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
+    Memo.Lines.Add('Running DSFTool -text2dsf "'+TXTCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
     ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 1, log);
   end;
   If DSFCombo.text <> '' then
   begin
-    Memo3.Lines.Add('Running DSFTool -dsf2text "'+DSFCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
+    Memo.Lines.Add('Running DSFTool -dsf2text "'+DSFCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
     ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-dsf2text','"'+DSFCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 1, log);
   end;
-  Memo3.Lines.Add('Finished!'+sLineBreak+'Output:'+sLineBreak+'------------------------------------------------------------------');
-  Memo3.Lines.Add(log);
-
+  Memo.Lines.Add('Finished!'+sLineBreak+'Output:'+sLineBreak+'------------------------------------------------------------------');
+  Memo.Lines.Add(log);
+  Memo.Lines.Add('*********************************************************');
 
   If not ContainsText(DSFToolPathCombo.Items.Text, DSFToolPathCombo.text) then
     DSFToolPathCombo.Items.Add(DSFToolPathCombo.text);
@@ -701,6 +719,8 @@ begin
     TXTCombo.Items.Add(TXTCombo.text);
   If not ContainsText(DSFCombo.Items.Text, DSFCombo.text) then
     DSFCombo.Items.Add(DSFCombo.text);
+
+
 end;
 
 procedure TForm1.OBJ2DSFButtonClick(Sender: TObject);
@@ -770,7 +790,8 @@ begin
     anOBJ.Free;
     aDSF.Free;
     MessageBeep(MB_OK);
-    Memo2.Lines.Add('Done!');
+    Memo.Lines.Add('Done!');
+    Memo.Lines.Add('*********************************************************');
   end;
 
 end;
@@ -781,10 +802,10 @@ var x,y,z: integer;
     FoundCollisionPatch: boolean;
 begin
     {delete all references to land and sea collision meshes in DSF.txt file}
-    Memo2.Lines.Add('Removing original mesh...');
+    Memo.Lines.Add('Removing original mesh...');
     progressbar1.Position := 0;
     progressbar1.Max := DSF_SL.Count;
-    x := DSF_SL.Count-1;       //start deleting from bottom so that X is decremented and you do not skip items to delete from the top.
+    x := DSF_SL.Count-1;       //start deleting from bottom so that X is decremented and so that you do not skip items to delete from the top.
     while x > 0 do
     begin
       FoundCollisionPatch := false;
@@ -819,7 +840,7 @@ begin
 //        DSF_SL.Delete(x);
 //      dec(x);
 //    end;
-    Memo2.Lines.Add('Finished removing original mesh.');
+    Memo.Lines.Add('Finished removing original mesh.');
 end;
 
 procedure TForm1.CollectOBJ(OBJ_SL: TStringList);
@@ -902,7 +923,7 @@ begin
 
 
   //Collect All Groups, their verts and faces.
-  Memo2.Lines.Add('Collecting all groups, verts and faces...');
+  Memo.Lines.Add('Collecting all groups, verts and faces...');
   progressbar1.Position := 0;
   For x := GetHeaderCommentSize(OBJ_SL, '#') to OBJ_SL.Count-1 do
   begin
@@ -940,7 +961,7 @@ begin
     progressbar1.Position := progressbar1.Position + 1;
     Application.ProcessMessages;
   end;
-  Memo2.Lines.Add('Finished collecting groups, verts and faces.');
+  Memo.Lines.Add('Finished collecting groups, verts and faces.');
 
   //Set heights of all water vertices from RASTER RAW if we are using it as a source.
   //Water Verts must always have their elevations hard coded into the DSF
@@ -949,9 +970,9 @@ begin
   begin
     If RAW_Array = nil then
     begin
-      Memo2.Lines.add('Reading elevations from RAW...');
+      Memo.Lines.add('Reading elevations from RAW...');
       ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, StrToFloat(UpperEdit2.Text), StrToFloat(LowerEdit2.Text), InterpolateCheckbox2.checked);
-      Memo2.Lines.Add('Finished reading elevations.');
+      Memo.Lines.Add('Finished reading elevations.');
     end;
 
     progressbar1.Max := anOBJ.children.Count;
@@ -971,7 +992,7 @@ begin
       progressbar1.Position := progressbar1.Position +1;
       Application.ProcessMessages;
     end;
-    Memo2.Lines.add('Finished applying elevations to water verts.');
+    Memo.Lines.add('Finished applying elevations to water verts.');
   end;
 
   //Match coastal land vertices to their water conterparts.
@@ -980,7 +1001,7 @@ begin
     x:=0;
     progressbar1.Max := anOBJ.children.Count;
     progressbar1.Position := 0;
-    Memo2.Lines.Add('Matching elevations of coastal land verts to water verts...');
+    Memo.Lines.Add('Matching elevations of coastal land verts to water verts...');
     For aGroup in anOBJ.children do
     begin
       If aGroup.ter_def <> '0' then  //land Group
@@ -1006,7 +1027,7 @@ begin
       end;
       progressbar1.Position := progressbar1.Position +1;
     end;
-    Memo2.Lines.Add('Matched '+IntToStr(x)+' vertices. Finished matching elevations.');
+    Memo.Lines.Add('Matched '+IntToStr(x)+' vertices. Finished matching elevations.');
   end;
 end;
 
@@ -1022,7 +1043,7 @@ begin
   //find insertion point for edits
   x := DSF_SL.IndexOf('RASTER_DEF bathymetry')+1;
 
-  Memo2.Lines.Add('Inserting edited mesh...');
+  Memo.Lines.Add('Inserting edited mesh...');
 
   ProgressBar1.Max := anOBJ.children.Count;
   progressbar1.Position := 0;
@@ -1063,7 +1084,7 @@ begin
     inc(x);
   end;
 
-  Memo2.Lines.Add('Finished inserting edited mesh.');
+  Memo.Lines.Add('Finished inserting edited mesh.');
   If DimXEdit.Text <> '' then
   begin
     x := DSF_SL.Count-1;
@@ -1082,9 +1103,9 @@ begin
     DSF_SL.Insert(x, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards');
   end;
 
-  Memo2.Lines.Add('Saving new DSF.txt...');
+  Memo.Lines.Add('Saving new DSF.txt...');
   DSF_SL.SaveToFile(StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
-  Memo2.Lines.Add('File saved as '+StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
+  Memo.Lines.Add('File saved as '+StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
 end;
 
 procedure TForm1.OutputDirComboExit(Sender: TObject);
@@ -1124,7 +1145,7 @@ end;
 
 //  try
 //    {delete all references to land and sea collision meshes in DSF.txt file}
-//    Memo2.Lines.Add('Removing original mesh...');
+//    Memo.Lines.Add('Removing original mesh...');
 //    x:= DSF_SL.count-1;
 //    While x > 0 do
 //    begin
@@ -1132,7 +1153,7 @@ end;
 //        DSF_SL.Delete(x);
 //      dec(x);
 //    end;
-//    Memo2.Lines.Add('Finished removing original mesh.');
+//    Memo.Lines.Add('Finished removing original mesh.');
 //
 //    ////////////////COMBINED WAVEFRONT OBJ//////////////////////////
 //    {Collect Vertices}
@@ -1163,7 +1184,7 @@ end;
 //
 //    //begin collecting verts
 //    v := 1;
-//    Memo2.Lines.Add('Collecting all verts...');
+//    Memo.Lines.Add('Collecting all verts...');
 //    For x := 0 to OBJ_SL.Count-1 do
 //    begin
 //      If ContainsText(OBJ_SL.Strings[x],'Water') then
@@ -1191,26 +1212,26 @@ end;
 //        inc(v);
 //      end;
 //    end;
-//    Memo2.Lines.Add('Finished collecting verts.');
+//    Memo.Lines.Add('Finished collecting verts.');
 //
 //    //Set heights of all water vertices from RASTER RAW if we are using it as a source.
 //    If ElevationSourceRadioGroup.ItemIndex = 0 then
 //    begin
 //      If RAW_Array = nil then
 //      begin
-//        Memo2.Lines.add('Reading elevations from RAW...');
+//        Memo.Lines.add('Reading elevations from RAW...');
 //        ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, StrToFloat(UpperEdit2.Text), StrToFloat(LowerEdit2.Text), InterpolateCheckbox2.checked);
-//        Memo2.Lines.Add('Finished reading elevations.');
+//        Memo.Lines.Add('Finished reading elevations.');
 //      end;
 //
 //      For aVertex in Sea_VertexList do
 //        aVertex.height := FindElevation(aVertex, RAW_rows);
-//      Memo2.Lines.add('Finished applying elevations to water verts.');
+//      Memo.Lines.add('Finished applying elevations to water verts.');
 //    end;
 //
 //    //Match coastal land vertices to their water conterparts.
 //    x:=0;
-//    Memo2.Lines.Add('Matching elevations of coastal land verts to water verts...');
+//    Memo.Lines.Add('Matching elevations of coastal land verts to water verts...');
 //    For aVertex in Land_VertexList do
 //    begin
 //      For anotherVertex in Sea_VertexList do
@@ -1223,7 +1244,7 @@ end;
 //        end;
 //      end;
 //    end;
-//    Memo2.Lines.Add('Matched '+IntToStr(x)+' vertices. Finished matching elevations.');
+//    Memo.Lines.Add('Matched '+IntToStr(x)+' vertices. Finished matching elevations.');
 //
 //
 //
@@ -1265,7 +1286,7 @@ end;
 //      end;
 //    end;
 //
-//    Memo2.Lines.Add('Collecting faces...');
+//    Memo.Lines.Add('Collecting faces...');
 //    For x := 0 to OBJ_SL.Count-1 do
 //    begin
 //      If ContainsText(OBJ_SL.Strings[x],'Water') then
@@ -1291,7 +1312,7 @@ end;
 //
 //
 //    end;
-//    Memo2.Lines.Add('Finished collecting faces.');
+//    Memo.Lines.Add('Finished collecting faces.');
 //
 //
 //    /////////////////////
@@ -1307,7 +1328,7 @@ end;
 //    //find insertion point for edits
 //    x := DSF_SL.IndexOf('RASTER_DEF bathymetry')+1;
 //
-//    Memo2.Lines.Add('Inserting edited mesh...');
+//    Memo.Lines.Add('Inserting edited mesh...');
 //
 //
 //    ///////////////////////////USE FACE VERTEX ORDERS FOR WAVEFRONT OBJ///////////////////////
@@ -1408,7 +1429,7 @@ end;
 //    ////////////////////////////////////////
 //
 //
-//    Memo2.Lines.Add('Finished inserting edited mesh.');
+//    Memo.Lines.Add('Finished inserting edited mesh.');
 //    If DimXEdit.Text <> '' then
 //    begin
 //      x := DSF_SL.Count-1;
@@ -1427,14 +1448,14 @@ end;
 //      DSF_SL.Insert(x, '# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards');
 //    end;
 //
-//    Memo2.Lines.Add('Saving new DSF.txt...');
+//    Memo.Lines.Add('Saving new DSF.txt...');
 //    DSF_SL.SaveToFile(StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
-//    Memo2.Lines.Add('File saved as '+StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
+//    Memo.Lines.Add('File saved as '+StringReplace(DSF2Edit.text,'.txt','_edited.txt',[]));
 //  finally
 //    aVertex.Free;
 ////    IDX_List.Free;
 //    MessageBeep(MB_OK);
-//    Memo2.Lines.Add('Done!');
+//    Memo.Lines.Add('Done!');
 //  end;
 //end;
 
@@ -1549,6 +1570,87 @@ end;
 
 
 
+procedure TForm1.ChangeElevationButtonClick(Sender: TObject);
+var OBJ_SL: TStringList;
+    match, state: boolean;
+    aGroup: TOBJ_Group;
+    aVertex: TVERTEX;
+    index: integer;
+begin
+//changes height points of OBJ to match RASTER RAW
+
+  //N
+  Extents[1]:= -999*100000;
+  //S
+  Extents[2]:= 999*100000;
+  //W
+  Extents[3]:= 999*100000;
+  //E
+  Extents[4]:= -999*100000;
+
+//  face_count := 0;
+//  vert_count := 0;
+//  prim_count := 0;
+
+  //ignore settings on DSF to OBJ page
+  state := ElevationCheckBox.Checked;
+  match := MatchCheckBox.Checked;
+  index := ElevationSourceRadioGroup.ItemIndex;
+  ElevationCheckBox.Checked := true; //burn elevevations into OBJ
+  MatchCheckBox.Checked := false;
+  ElevationSourceRadioGroup.ItemIndex := 1;
+
+  OBJ_SL := TStringList.Create;
+  anOBJ := TOBJ.create;
+
+  progressbar2.Max := 3;
+  progressbar2.Position := 0;
+
+
+  try
+    OBJ_SL.LoadFromFile(LoadOBJEdit.Text);
+    Memo.Lines.Add('Reading OBJ...');
+    CollectOBJ(OBJ_SL);
+    Memo.Lines.Add('Finished reading OBJ.');
+    progressbar2.Position := 1;
+
+    Memo.Lines.add('Reading elevations from RAW...');
+    ReadElevations(RasterEdit.Text, RAW_rows, 	StrToFloat(UpperEdit.Text), StrToFloat(LowerEdit.Text), InterpolateCheckbox1.checked);
+    Memo.Lines.Add('Finished reading elevations.');
+
+
+    Memo.Lines.Add('Changing elevations of vertices in OBJ...');
+    for aGroup in anOBJ.children do
+    begin
+      for aVertex in aGroup.vertices do
+        SetExtents(aVertex); //find coverage area of OBJ
+    end;
+
+    for aGroup in anOBJ.children do
+    begin
+      for aVertex in aGroup.vertices do
+      begin
+        aVertex.height := FindElevation(aVertex, RAW_rows);
+//        If aVertex.height > 0 then
+//          Memo.Lines.Add(FloatToStr(aVertex.height));
+      end;
+    end;
+    Memo.Lines.Add('Finished changing elevations.');
+    progressbar2.Position := 2;
+
+    ExportOBJ(1);
+    progressbar2.Position := 3;
+  finally
+    OBJ_SL.Free;
+    anOBJ.Free;
+    Memo.Lines.Add('*********************************************************');
+    //restore settings on DSF to OBJ page
+    ElevationCheckBox.checked := state;
+    MatchCheckBox.Checked := match;
+    ElevationSourceRadioGroup.ItemIndex := index;
+  end;
+end;
+
 procedure TForm1.ElevationCheckBoxClick(Sender: TObject);
 begin
   if ElevationCheckBox.checked then
@@ -1599,7 +1701,7 @@ var SL: TStringList;
     g: integer;
 
 begin
-  Memo1.Lines.Add('Starting OBJ Export!');
+  Memo.Lines.Add('Starting OBJ Export!');
 
   SL := TStringList.Create;
   //header
@@ -1641,7 +1743,7 @@ begin
     end;
     SL.SaveToFile(SaveName);
 
-    Memo1.Lines.Add('OBJ Export Succesful as '+SaveName+'!');
+    Memo.Lines.Add('OBJ Export Succesful as '+SaveName+'!');
   Finally
     SL.Free;
   End;
@@ -1722,7 +1824,7 @@ begin
   // Create list/array of all vertices in OBJ as records
   SetLength(FaceList, 0);
   dups:=0;
-  Memo1.Lines.Add('Removing duplicate faces...');
+  Memo.Lines.Add('Removing duplicate faces...');
   for aGroup in anOBJ.children do
     begin
       for aFace in aGroup.faces do
@@ -1740,8 +1842,8 @@ begin
         FaceList[length(FaceList)-1] := aFR;
       end;
     end;
-    Memo1.Lines.Add('Found '+IntToStr(length(FaceList))+' total faces...');
-    Memo1.Lines.Add('Searching for duplicates...');
+    Memo.Lines.Add('Found '+IntToStr(length(FaceList))+' total faces...');
+    Memo.Lines.Add('Searching for duplicates...');
 
     ProgressBar1.Max := length(FaceList);
     ProgressBar1.Position := 0;
@@ -1770,7 +1872,7 @@ begin
         end;
       end;
     end;
-    Memo1.Lines.Add('Found '+IntToStr(dups)+' duplicate faces...');
+    Memo.Lines.Add('Found '+IntToStr(dups)+' duplicate faces...');
 
 
     // When complete, remove all duplicate faces from groups by Face ID
@@ -1794,7 +1896,7 @@ begin
           end;
       end;
     end;
-    Memo1.Lines.Add('Finished removing duplicate faces.');
+    Memo.Lines.Add('Finished removing duplicate faces.');
 
 end;
 
@@ -1846,21 +1948,22 @@ begin
 
   try
     OBJ_SL.LoadFromFile(LoadOBJEdit.Text);
-    Memo4.Lines.Add('Reading OBJ...');
+    Memo.Lines.Add('Reading OBJ...');
     CollectOBJ(OBJ_SL);
-    Memo4.Lines.Add('Finished reading OBJ.');
+    Memo.Lines.Add('Finished reading OBJ.');
     progressbar2.Position := 1;
-    Memo4.Lines.Add('Adding detail to triangles...');
+    Memo.Lines.Add('Adding detail to triangles...');
     AddDetail;
-    Memo4.Lines.Add('Finished adding detail.');
+    Memo.Lines.Add('Finished adding detail.');
     progressbar2.Position := 2;
-    Memo4.Lines.Add('Starting OBJ Export...');
+    Memo.Lines.Add('Starting OBJ Export...');
     ExportOBJ(1);
-    Memo4.Lines.Add('Export Done!');
+    Memo.Lines.Add('Export Done!');
     progressbar2.Position := 3;
   finally
     OBJ_SL.Free;
     anOBJ.Free;
+    Memo.Lines.Add('*********************************************************');
     ElevationCheckBox.checked := state;
     MatchCheckBox.Checked := match;
     ElevationSourceRadioGroup.ItemIndex := index;
@@ -1881,6 +1984,16 @@ begin
 	
 
   SaveState(Comps, ComponentCount, ExtractFilePath(Application.ExeName)+'OBJ2XPMesh.fs');				 
+end;
+
+procedure TForm1.RasterButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'RAW files (*.RAW)|*.RAW';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    RasterEdit.Text := OpenTextFileDialog1.FileName;
+  end;
 end;
 
 procedure TForm1.ReadElevations(FileName: string; out rows_out: integer; upper, lower: single; interpolate: boolean=true);
@@ -2121,7 +2234,7 @@ begin
 
   aDetailedOBJ := TOBJ.create;
 
-  Memo1.Lines.add('Creating new vertices and faces...');
+  Memo.Lines.add('Creating new vertices and faces...');
 
 //Decrement each ID in each group by the total number of verts before it
 //We will be resetting each vertex and face reference to start at 1 for each group
@@ -2202,11 +2315,11 @@ begin
     ResetVertReferences(1, aDetailedOBJ, new_face_count);
 
 
-    Memo4.Lines.add('Finshed creating new vertices and faces.');
-    Memo4.Lines.add('Split '+IntToStr(original_face_count)+' faces into '+IntToStr(new_face_count)+' faces.');
+    Memo.Lines.add('Finshed creating new vertices and faces.');
+    Memo.Lines.add('Split '+IntToStr(original_face_count)+' faces into '+IntToStr(new_face_count)+' faces.');
 
      {use following code if we only add detail to some groups and not others}
-//    Memo1.Lines.add('Adding unchanged groups/patches...');
+//    Memo.Lines.add('Adding unchanged groups/patches...');
 //    for aGroup in anOBJ.children do
 //      begin
 //        for anotherGroup in anotherOBJ.children do
@@ -2217,12 +2330,12 @@ begin
 //            anotherOBJ.children.Add(aGroup); //add groups which are not identical, i.e. unchanged from original
 //          end;
 //      end;
-//    Memo1.Lines.add('Finished adding unchanged groups/patches.');
+//    Memo.Lines.add('Finished adding unchanged groups/patches.');
 
     anOBJ := aDetailedOBJ;   //assign edited OBJ for export
 
 
-    Memo1.Lines.add('Done adding detail!');
+    Memo.Lines.add('Done adding detail!');
 
 end;
 
