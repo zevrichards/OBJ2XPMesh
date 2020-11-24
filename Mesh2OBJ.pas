@@ -443,7 +443,7 @@ begin
           //skip this entire patch
           repeat
             inc(x);
-          until ContainsText(CurrentLine, 'END_PATCH');
+          until ContainsText(CurrentLine, 'END_PATCH'){ or (x >= SL.Count-1)};
         end;
       end;
 
