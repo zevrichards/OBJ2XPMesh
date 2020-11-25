@@ -153,6 +153,7 @@ type
     RasterButton: TButton;
     RasterEdit: TEdit;
     Memo: TMemo;
+    BurnElevationsSourceRadioGroup: TRadioGroup;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -443,7 +444,7 @@ begin
           //skip this entire patch
           repeat
             inc(x);
-          until ContainsText(CurrentLine, 'END_PATCH'){ or (x >= SL.Count-1)};
+          until ContainsText(SL.Strings[x], 'END_PATCH'){ or (x >= SL.Count-1)};
         end;
       end;
 
@@ -638,7 +639,7 @@ begin
     if AddDetailCheckbox.Checked then
       AddDetail;
     progressbar2.Position := 4;
-    If ElevationCheckBox.Checked then
+    If (ElevationCheckBox.Checked) and (BurnElevationsSourceRadioGroup.ItemIndex=0) then
       BurnElevations;
     progressbar2.Position := 5;
     ExportOBJ(100000);
@@ -1658,6 +1659,7 @@ begin
     InterpolateCheckBox1.Enabled := true;
     UpperEdit.Enabled := true;
     LowerEdit.Enabled := true;
+    BurnElevationsSourceRadioGroup.Enabled := true;
   end
   else
   begin
@@ -1665,6 +1667,7 @@ begin
     InterpolateCheckBox1.Checked := false;
     UpperEdit.Enabled := false;
     LowerEdit.Enabled := false;
+    BurnElevationsSourceRadioGroup.Enabled := false;
   end;
 end;
 

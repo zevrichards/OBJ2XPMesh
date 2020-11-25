@@ -19,24 +19,22 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 321
-    ActivePage = OBJ2DSFPage
+    ActivePage = DSF2OBJPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
       ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
+      ExplicitTop = 28
       object Label9: TLabel
-        Left = 319
-        Top = 75
+        Left = 330
+        Top = 95
         Width = 10
         Height = 13
         Caption = 'to'
       end
       object Label10: TLabel
-        Left = 170
-        Top = 75
+        Left = 181
+        Top = 95
         Width = 94
         Height = 13
         Caption = 'Limits of Valid Data:'
@@ -61,10 +59,10 @@ object Form1: TForm1
       end
       object ElevationCheckBox: TCheckBox
         Left = 3
-        Top = 55
-        Width = 153
+        Top = 63
+        Width = 126
         Height = 17
-        Caption = 'Burn Elevations into OBJ'
+        Caption = 'Burn Elevations from:'
         TabOrder = 2
         OnClick = ElevationCheckBoxClick
       end
@@ -79,15 +77,15 @@ object Form1: TForm1
       end
       object InterpolateCheckBox1: TCheckBox
         Left = 3
-        Top = 73
+        Top = 94
         Width = 161
         Height = 17
         Caption = 'Interpolate for invalid data.'
         TabOrder = 4
       end
       object UpperEdit: TEdit
-        Left = 270
-        Top = 72
+        Left = 281
+        Top = 94
         Width = 43
         Height = 21
         NumbersOnly = True
@@ -95,8 +93,8 @@ object Form1: TForm1
         Text = '8848'
       end
       object LowerEdit: TEdit
-        Left = 338
-        Top = 72
+        Left = 349
+        Top = 94
         Width = 31
         Height = 21
         NumbersOnly = True
@@ -130,6 +128,20 @@ object Form1: TForm1
         Height = 17
         Caption = 'Remove Duplicate Faces (WARNING: SLOW!)'
         TabOrder = 9
+      end
+      object BurnElevationsSourceRadioGroup: TRadioGroup
+        Left = 135
+        Top = 47
+        Width = 353
+        Height = 41
+        Caption = 'Elevation Source'
+        Columns = 2
+        ItemIndex = 0
+        Items.Strings = (
+          'Raster RAW'
+          'OBJ')
+        TabOrder = 10
+        OnClick = ElevationSourceRadioGroupClick
       end
     end
     object OBJ2DSFPage: TTabSheet
@@ -516,10 +528,6 @@ object Form1: TForm1
     object MiscTabSheet: TTabSheet
       Caption = 'Misc'
       ImageIndex = 3
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       object LoadOBJEdit: TEdit
         Left = 136
         Top = 14
