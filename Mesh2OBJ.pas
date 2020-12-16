@@ -162,9 +162,10 @@ type
     procedure CombinedOBJButtonClick(Sender: TObject);
     procedure OBJ2DSFButtonClick(Sender: TObject);
     procedure DSF2EditButtonClick(Sender: TObject);
+    function ExtractRoadNetwork(DSF_SL: TStringList): TStringList;
     procedure DeletePrimitives(DSF_SL: TStringList);
     procedure CollectOBJ(OBJ_SL: TStringList);
-    procedure EditDSF(DSF_SL: TStringList);
+    procedure EditDSF(DSF_SL, RoadNetwork: TStringList);
     procedure XPOBJRadioButtonClick(Sender: TObject);
     procedure WAVOBJRadioButtonClick(Sender: TObject);
     procedure DimXEditChange(Sender: TObject);
@@ -725,7 +726,7 @@ begin
 end;
 
 procedure TForm1.OBJ2DSFButtonClick(Sender: TObject);
-var DSF_SL, Combined_OBJ_SL, Land_OBJ_SL, Sea_OBJ_SL: TStringList;
+var DSF_SL, Combined_OBJ_SL, Land_OBJ_SL, Sea_OBJ_SL, RoadNetwork: TStringList;
 
 begin
   patch_count := 0;
@@ -734,7 +735,7 @@ begin
   face_count := 0;
 
 
-  progressbar2.max := 3;
+  progressbar2.max := 4;
   progressbar2.Position := 0;
 
 //N
@@ -765,6 +766,7 @@ begin
 
     DSF_SL := TStringList.Create;
     Combined_OBJ_SL := TStringList.Create;
+    RoadNetwork := TStringList.Create;
     anOBJ := TOBJ.create;
     aDSF := TDSF.create;
 
@@ -778,16 +780,19 @@ begin
   Construct count/3 type 0 (triangle) primitives from mesh
   insert all patch vertices in groups of 3s}
 
-    DeletePrimitives(DSF_SL);
+    RoadNetwork := ExtractRoadNetwork(DSF_SL);
     progressbar2.Position := 1;
-    CollectOBJ(Combined_OBJ_SL);
+    DeletePrimitives(DSF_SL);
     progressbar2.Position := 2;
-    EditDSF(DSF_SL);
+    CollectOBJ(Combined_OBJ_SL);
     progressbar2.Position := 3;
+    EditDSF(DSF_SL, RoadNetwork);
+    progressbar2.Position := 4;
 
   finally
     DSF_SL.Free;
     Combined_OBJ_SL.Free;
+    RoadNetwork.Free;
     anOBJ.Free;
     aDSF.Free;
     MessageBeep(MB_OK);
@@ -797,6 +802,51 @@ begin
 
 end;
 
+
+function TForm1.ExtractRoadNetwork(DSF_SL: TStringList): TStringList;
+var x,y,z: integer;
+    CurrentLine: string;
+begin
+  result := TStringList.create;
+
+  x := DSF_SL.Count-1;
+  y := x;
+  Memo.Lines.Add('Extracting road network from DSF...');
+
+  while x > 0 do
+  begin
+    dec(x);
+    CurrentLine := DSF_SL.Strings[x];
+    If CurrentLine.Split(Delimiters)[0] = 'END_SEGMENT' then
+    begin
+      y := x;
+      break;
+    end;
+  end;
+
+  repeat
+    dec(y);
+    If y <= 0 then
+    begin
+      Memo.Lines.add('WARNING: End of network not found. Cannot extract roads.');
+      continue;
+    end;
+    CurrentLine := DSF_SL.Strings[y];
+  until not ((ContainsText(CurrentLine, 'SEGMENT')) or (ContainsText(CurrentLine,'POINT')));
+
+  For z := y+1 to x do
+  begin
+    Result.add(DSF_SL.Strings[z]);
+  end;
+
+  Memo.Lines.Add('Roads saved.');
+end;
+
+{This procedure is supposed to find all collision meshes and delete them,
+However for some reason leaving meshes which are not collision meshes leads to "Could not sink vertex" errors when trying to rebuild the edited DSF.txt,
+probably because the triangles and verts have changed between the overlay meshes and the underlying collision mesh.
+For now, ALL meshes will need to be removed.
+This can cause lights (and other things?) to go missing.}
 procedure TForm1.DeletePrimitives(DSF_SL: TStringList);
 var x,y,z: integer;
     CurrentLine: string;
@@ -807,6 +857,42 @@ begin
     progressbar1.Position := 0;
     progressbar1.Max := DSF_SL.Count;
     x := DSF_SL.Count-1;       //start deleting from bottom so that X is decremented and so that you do not skip items to delete from the top.
+
+    {while x >= 0 do
+    begin
+      while (x >= 0) and (DSF_SL.Strings[x]<>'END_PATCH') do
+        dec(x);
+
+      y := x;
+      FoundCollisionPatch := false;
+
+      while (not FoundCollisionPatch) and (y>=0) do
+      begin
+        dec(y);
+        CurrentLine := DSF_SL.Strings[y];
+        If (CurrentLine.Split(Delimiters)[0] = 'BEGIN_PATCH') then
+        begin
+          If (CurrentLine.Split(Delimiters)[4] = '1') then
+            FoundCollisionPatch := true;
+        end
+        else
+        begin
+            x := y;
+        end;
+      end;
+
+      if FoundCollisionPatch then
+      begin
+        for z := y downto x do
+          DSF_SL.Delete(z);
+      end;
+      progressbar1.Position := DSF_SL.Count-x;
+      Memo.Lines.Add(IntToStr(x));
+      Application.ProcessMessages;
+    end; }
+
+
+
     while x > 0 do
     begin
       FoundCollisionPatch := false;
@@ -815,7 +901,7 @@ begin
          CurrentLine := DSF_SL.Strings[x];
          if CurrentLine<>'' then
          begin
-           if (CurrentLine.Split(Delimiters)[0] = 'BEGIN_PATCH'){ and (CurrentLine.Split(Delimiters)[4] = '1')} then
+           if (CurrentLine.Split(Delimiters)[0] = 'BEGIN_PATCH') {and (CurrentLine.Split(Delimiters)[4] = '1')} then      //this line here is supposed to differntiate between overlat and collision meshes
               FoundCollisionPatch := true
          end;
 
@@ -1032,11 +1118,11 @@ begin
   end;
 end;
 
-procedure TForm1.EditDSF(DSF_SL: TStringList);
+procedure TForm1.EditDSF(DSF_SL, RoadNetwork: TStringList);
 var aVertex: TVERTEX;
     aFace: TOBJ_Face;
     aGroup: TOBJ_Group;
-    x: integer;
+    x,y: integer;
 
 begin
   {Begin insertion of patches and primitives}
@@ -1054,6 +1140,15 @@ begin
     Application.ProcessMessages;
     DSF_SL.Insert(x,'BEGIN_PATCH '+aGroup.ter_def+' 0.000000 -1.000000 1 7');
     inc(x);
+    //if this is the first patch, insert the road network
+    if progressbar1.Position = 1 then
+    begin
+      Memo.Lines.Add('Re-inserting roads...');
+      For y := 0 to RoadNetwork.Count-1 do
+        DSF_SL.Insert(x+y, RoadNetwork.strings[y]);
+      inc(x, RoadNetwork.Count);
+      Memo.Lines.Add('Roads added. Continuing with rest of mesh...');
+    end;
     //begin primitive
     DSF_SL.Insert(x,'BEGIN_PRIMITIVE 0');
     inc(x);

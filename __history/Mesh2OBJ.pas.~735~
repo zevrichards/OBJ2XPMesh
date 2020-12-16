@@ -153,6 +153,7 @@ type
     RasterButton: TButton;
     RasterEdit: TEdit;
     Memo: TMemo;
+    BurnElevationsSourceRadioGroup: TRadioGroup;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -443,7 +444,7 @@ begin
           //skip this entire patch
           repeat
             inc(x);
-          until ContainsText(CurrentLine, 'END_PATCH');
+          until ContainsText(SL.Strings[x], 'END_PATCH'){ or (x >= SL.Count-1)};
         end;
       end;
 
@@ -638,7 +639,7 @@ begin
     if AddDetailCheckbox.Checked then
       AddDetail;
     progressbar2.Position := 4;
-    If ElevationCheckBox.Checked then
+    If (ElevationCheckBox.Checked) and (BurnElevationsSourceRadioGroup.ItemIndex=0) then
       BurnElevations;
     progressbar2.Position := 5;
     ExportOBJ(100000);
@@ -796,6 +797,12 @@ begin
 
 end;
 
+
+{This procedure is supposed to find all collision meshes and delete them,
+However for some reason leaving meshes which are not collision meshes leads to "Could not sink vertex" errors when trying to rebuild the edited DSF.txt,
+probably because the triangles and verts have changed between the overlay meshes and the underlying collision mesh.
+For now, ALL meshes will need to be removed.
+This can cause lights (and other things?) to go missing.}
 procedure TForm1.DeletePrimitives(DSF_SL: TStringList);
 var x,y,z: integer;
     CurrentLine: string;
@@ -806,6 +813,42 @@ begin
     progressbar1.Position := 0;
     progressbar1.Max := DSF_SL.Count;
     x := DSF_SL.Count-1;       //start deleting from bottom so that X is decremented and so that you do not skip items to delete from the top.
+
+    {while x >= 0 do
+    begin
+      while (x >= 0) and (DSF_SL.Strings[x]<>'END_PATCH') do
+        dec(x);
+
+      y := x;
+      FoundCollisionPatch := false;
+
+      while (not FoundCollisionPatch) and (y>=0) do
+      begin
+        dec(y);
+        CurrentLine := DSF_SL.Strings[y];
+        If (CurrentLine.Split(Delimiters)[0] = 'BEGIN_PATCH') then
+        begin
+          If (CurrentLine.Split(Delimiters)[4] = '1') then
+            FoundCollisionPatch := true;
+        end
+        else
+        begin
+            x := y;
+        end;
+      end;
+
+      if FoundCollisionPatch then
+      begin
+        for z := y downto x do
+          DSF_SL.Delete(z);
+      end;
+      progressbar1.Position := DSF_SL.Count-x;
+      Memo.Lines.Add(IntToStr(x));
+      Application.ProcessMessages;
+    end; }
+
+
+
     while x > 0 do
     begin
       FoundCollisionPatch := false;
@@ -1658,6 +1701,7 @@ begin
     InterpolateCheckBox1.Enabled := true;
     UpperEdit.Enabled := true;
     LowerEdit.Enabled := true;
+    BurnElevationsSourceRadioGroup.Enabled := true;
   end
   else
   begin
@@ -1665,6 +1709,7 @@ begin
     InterpolateCheckBox1.Checked := false;
     UpperEdit.Enabled := false;
     LowerEdit.Enabled := false;
+    BurnElevationsSourceRadioGroup.Enabled := false;
   end;
 end;
 

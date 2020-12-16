@@ -149,10 +149,11 @@ type
     ProgressBar2: TProgressBar;
     CombinePatchesCheckBox: TCheckBox;
     RemoveDuplicateFacesCheckbox: TCheckBox;
-    ElevationButton: TButton;
+    ChangeElevationButton: TButton;
     RasterButton: TButton;
     RasterEdit: TEdit;
     Memo: TMemo;
+    BurnElevationsSourceRadioGroup: TRadioGroup;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -194,7 +195,7 @@ type
     procedure LoadOBJButtonClick(Sender: TObject);
     procedure MemoChange(Sender: TObject);
     procedure RasterButtonClick(Sender: TObject);
-    procedure ElevationButtonClick(Sender: TObject);
+    procedure ChangeElevationButtonClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -426,8 +427,10 @@ begin
     SL.LoadFromFile(DSFTXTEdit.Text);   //    Open DSF.txt file
     progressbar1.Max := SL.Count;
 
-    For x := 0 to SL.Count-1 do     //collect patches, their primitives and their vertices
+    x:= 0;
+    While x <= SL.Count-1 do     //collect patches, their primitives and their vertices
     begin
+
       CurrentLine := SL.Strings[x];
       If ContainsText(CurrentLine, 'BEGIN_PATCH') then
       begin
@@ -435,6 +438,13 @@ begin
         begin
           aPatch := TPATCH.create(CurrentLine);
           aDSF.children.Add(aPatch);
+        end
+        else
+        begin
+          //skip this entire patch
+          repeat
+            inc(x);
+          until ContainsText(SL.Strings[x], 'END_PATCH'){ or (x >= SL.Count-1)};
         end;
       end;
 
@@ -451,6 +461,7 @@ begin
         aPrimitive.children.add(aVertex);
         SetExtents(aVertex);  //determine extents of mesh coverage
       end;
+      inc(x);
     end;
 
     Memo.Lines.Add(IntToStr(patch_count)+' Total Patches');
@@ -628,12 +639,13 @@ begin
     if AddDetailCheckbox.Checked then
       AddDetail;
     progressbar2.Position := 4;
-    If ElevationCheckBox.Checked then
+    If (ElevationCheckBox.Checked) and (BurnElevationsSourceRadioGroup.ItemIndex=0) then
       BurnElevations;
     progressbar2.Position := 5;
     ExportOBJ(100000);
     progressbar2.Position := 6;
   finally
+    Memo.Lines.Add('*********************************************************');
     aDSF.free;
     anOBJ.free;
   end;
@@ -696,7 +708,7 @@ begin
   end;
   Memo.Lines.Add('Finished!'+sLineBreak+'Output:'+sLineBreak+'------------------------------------------------------------------');
   Memo.Lines.Add(log);
-
+  Memo.Lines.Add('*********************************************************');
 
   If not ContainsText(DSFToolPathCombo.Items.Text, DSFToolPathCombo.text) then
     DSFToolPathCombo.Items.Add(DSFToolPathCombo.text);
@@ -708,6 +720,8 @@ begin
     TXTCombo.Items.Add(TXTCombo.text);
   If not ContainsText(DSFCombo.Items.Text, DSFCombo.text) then
     DSFCombo.Items.Add(DSFCombo.text);
+
+
 end;
 
 procedure TForm1.OBJ2DSFButtonClick(Sender: TObject);
@@ -778,6 +792,7 @@ begin
     aDSF.Free;
     MessageBeep(MB_OK);
     Memo.Lines.Add('Done!');
+    Memo.Lines.Add('*********************************************************');
   end;
 
 end;
@@ -791,7 +806,7 @@ begin
     Memo.Lines.Add('Removing original mesh...');
     progressbar1.Position := 0;
     progressbar1.Max := DSF_SL.Count;
-    x := DSF_SL.Count-1;       //start deleting from bottom so that X is decremented and you do not skip items to delete from the top.
+    x := DSF_SL.Count-1;       //start deleting from bottom so that X is decremented and so that you do not skip items to delete from the top.
     while x > 0 do
     begin
       FoundCollisionPatch := false;
@@ -800,7 +815,7 @@ begin
          CurrentLine := DSF_SL.Strings[x];
          if CurrentLine<>'' then
          begin
-           if (CurrentLine.Split(Delimiters)[0] = 'BEGIN_PATCH') and (CurrentLine.Split(Delimiters)[4] = '1') then
+           if (CurrentLine.Split(Delimiters)[0] = 'BEGIN_PATCH'){ and (CurrentLine.Split(Delimiters)[4] = '1')} then
               FoundCollisionPatch := true
          end;
 
@@ -1556,24 +1571,35 @@ end;
 
 
 
-procedure TForm1.ElevationButtonClick(Sender: TObject);
+procedure TForm1.ChangeElevationButtonClick(Sender: TObject);
 var OBJ_SL: TStringList;
-    state: boolean;
+    match, state: boolean;
     aGroup: TOBJ_Group;
     aVertex: TVERTEX;
+    index: integer;
 begin
 //changes height points of OBJ to match RASTER RAW
+
+  //N
+  Extents[1]:= -999*100000;
+  //S
+  Extents[2]:= 999*100000;
+  //W
+  Extents[3]:= 999*100000;
+  //E
+  Extents[4]:= -999*100000;
 
 //  face_count := 0;
 //  vert_count := 0;
 //  prim_count := 0;
-//
+
+  //ignore settings on DSF to OBJ page
   state := ElevationCheckBox.Checked;
-//  match := MatchCheckBox.Checked;
-//  index := ElevationSourceRadioGroup.ItemIndex;
-  ElevationCheckBox.Checked := false;      //to ignore burning of elevation settings on DSF to OBJ page
-//  MatchCheckBox.Checked := false;
-//  ElevationSourceRadioGroup.ItemIndex := 1;
+  match := MatchCheckBox.Checked;
+  index := ElevationSourceRadioGroup.ItemIndex;
+  ElevationCheckBox.Checked := true; //burn elevevations into OBJ
+  MatchCheckBox.Checked := false;
+  ElevationSourceRadioGroup.ItemIndex := 1;
 
   OBJ_SL := TStringList.Create;
   anOBJ := TOBJ.create;
@@ -1598,21 +1624,31 @@ begin
     for aGroup in anOBJ.children do
     begin
       for aVertex in aGroup.vertices do
+        SetExtents(aVertex); //find coverage area of OBJ
+    end;
+
+    for aGroup in anOBJ.children do
+    begin
+      for aVertex in aGroup.vertices do
+      begin
         aVertex.height := FindElevation(aVertex, RAW_rows);
+//        If aVertex.height > 0 then
+//          Memo.Lines.Add(FloatToStr(aVertex.height));
+      end;
     end;
     Memo.Lines.Add('Finished changing elevations.');
-
     progressbar2.Position := 2;
-    Memo.Lines.Add('Starting OBJ Export...');
+
     ExportOBJ(1);
-    Memo.Lines.Add('Export Done!');
     progressbar2.Position := 3;
   finally
     OBJ_SL.Free;
     anOBJ.Free;
+    Memo.Lines.Add('*********************************************************');
+    //restore settings on DSF to OBJ page
     ElevationCheckBox.checked := state;
-//    MatchCheckBox.Checked := match;
-//    ElevationSourceRadioGroup.ItemIndex := index;
+    MatchCheckBox.Checked := match;
+    ElevationSourceRadioGroup.ItemIndex := index;
   end;
 end;
 
@@ -1623,6 +1659,7 @@ begin
     InterpolateCheckBox1.Enabled := true;
     UpperEdit.Enabled := true;
     LowerEdit.Enabled := true;
+    BurnElevationsSourceRadioGroup.Enabled := true;
   end
   else
   begin
@@ -1630,6 +1667,7 @@ begin
     InterpolateCheckBox1.Checked := false;
     UpperEdit.Enabled := false;
     LowerEdit.Enabled := false;
+    BurnElevationsSourceRadioGroup.Enabled := false;
   end;
 end;
 
@@ -1928,6 +1966,7 @@ begin
   finally
     OBJ_SL.Free;
     anOBJ.Free;
+    Memo.Lines.Add('*********************************************************');
     ElevationCheckBox.checked := state;
     MatchCheckBox.Checked := match;
     ElevationSourceRadioGroup.ItemIndex := index;

@@ -1,7 +1,7 @@
 ElevationCheckBox=-1
-InterpolateCheckBox1=-1
+InterpolateCheckBox1=0
 AddDetailCheckBox=0
-CombinePatchesCheckBox=-1
+CombinePatchesCheckBox=0
 RemoveDuplicateFacesCheckbox=0
 CombinedOBJCheckBox=-1
 InterpolateCheckBox2=0

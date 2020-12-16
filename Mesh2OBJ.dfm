@@ -19,12 +19,10 @@ object Form1: TForm1
     Top = 8
     Width = 841
     Height = 321
-    ActivePage = DSF2OBJPage
+    ActivePage = OBJ2DSFPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
-      ExplicitLeft = 0
-      ExplicitTop = 28
       object Label9: TLabel
         Left = 330
         Top = 95
@@ -139,7 +137,7 @@ object Form1: TForm1
         ItemIndex = 0
         Items.Strings = (
           'Raster RAW'
-          'OBJ')
+          'DSF Z-values')
         TabOrder = 10
         OnClick = ElevationSourceRadioGroupClick
       end

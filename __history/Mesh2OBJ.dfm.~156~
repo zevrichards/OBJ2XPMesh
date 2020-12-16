@@ -2,7 +2,7 @@ object Form1: TForm1
   Left = 0
   Top = 0
   Caption = 'OBJ 2 XP Mesh'
-  ClientHeight = 421
+  ClientHeight = 622
   ClientWidth = 852
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -14,32 +14,25 @@ object Form1: TForm1
   OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 13
-  object Label5: TLabel
-    Left = 15
-    Top = 224
-    Width = 68
-    Height = 13
-    Caption = 'Raster Length'
-  end
   object PageControl1: TPageControl
     Left = 8
     Top = 8
     Width = 841
-    Height = 395
-    ActivePage = OBJ2DSFPage
+    Height = 321
+    ActivePage = DSF2OBJPage
     TabOrder = 0
     object DSF2OBJPage: TTabSheet
       Caption = 'DSF To OBJ'
       object Label9: TLabel
-        Left = 319
-        Top = 75
+        Left = 330
+        Top = 95
         Width = 10
         Height = 13
         Caption = 'to'
       end
       object Label10: TLabel
-        Left = 170
-        Top = 75
+        Left = 181
+        Top = 95
         Width = 94
         Height = 13
         Caption = 'Limits of Valid Data:'
@@ -53,30 +46,22 @@ object Form1: TForm1
         TabOrder = 0
         OnClick = DSFButtonClick
       end
-      object Memo1: TMemo
-        Left = 3
-        Top = 192
-        Width = 828
-        Height = 137
-        ScrollBars = ssVertical
-        TabOrder = 1
-      end
       object Convert2OBJButton: TButton
         Left = 355
-        Top = 335
+        Top = 199
         Width = 121
         Height = 29
         Caption = 'Convert DSF to OBJ'
-        TabOrder = 2
+        TabOrder = 1
         OnClick = Convert2OBJButtonClick
       end
       object ElevationCheckBox: TCheckBox
         Left = 3
-        Top = 55
-        Width = 153
+        Top = 63
+        Width = 126
         Height = 17
-        Caption = 'Burn Elevations into OBJ'
-        TabOrder = 3
+        Caption = 'Burn Elevations from:'
+        TabOrder = 2
         OnClick = ElevationCheckBoxClick
       end
       object DSFTXTEdit: TEdit
@@ -85,33 +70,33 @@ object Form1: TForm1
         Width = 652
         Height = 21
         Enabled = False
-        TabOrder = 4
+        TabOrder = 3
         Text = 'C:\users\CSI\desktop\working\+13-062.txt'
       end
       object InterpolateCheckBox1: TCheckBox
         Left = 3
-        Top = 73
+        Top = 94
         Width = 161
         Height = 17
         Caption = 'Interpolate for invalid data.'
-        TabOrder = 5
+        TabOrder = 4
       end
       object UpperEdit: TEdit
-        Left = 270
-        Top = 72
+        Left = 281
+        Top = 94
         Width = 43
         Height = 21
         NumbersOnly = True
-        TabOrder = 6
+        TabOrder = 5
         Text = '8848'
       end
       object LowerEdit: TEdit
-        Left = 338
-        Top = 72
+        Left = 349
+        Top = 94
         Width = 31
         Height = 21
         NumbersOnly = True
-        TabOrder = 7
+        TabOrder = 6
         Text = '-430'
       end
       object AddDetailCheckBox: TCheckBox
@@ -120,7 +105,7 @@ object Form1: TForm1
         Width = 97
         Height = 17
         Caption = 'Add Detail'
-        TabOrder = 8
+        TabOrder = 7
       end
       object CombinePatchesCheckBox: TCheckBox
         Left = 3
@@ -132,7 +117,7 @@ object Form1: TForm1
           'oups.'
         Checked = True
         State = cbChecked
-        TabOrder = 9
+        TabOrder = 8
       end
       object RemoveDuplicateFacesCheckbox: TCheckBox
         Left = 3
@@ -140,7 +125,21 @@ object Form1: TForm1
         Width = 342
         Height = 17
         Caption = 'Remove Duplicate Faces (WARNING: SLOW!)'
+        TabOrder = 9
+      end
+      object BurnElevationsSourceRadioGroup: TRadioGroup
+        Left = 135
+        Top = 47
+        Width = 353
+        Height = 41
+        Caption = 'Elevation Source'
+        Columns = 2
+        ItemIndex = 0
+        Items.Strings = (
+          'Raster RAW'
+          'DSF Z-values')
         TabOrder = 10
+        OnClick = ElevationSourceRadioGroupClick
       end
     end
     object OBJ2DSFPage: TTabSheet
@@ -213,21 +212,13 @@ object Form1: TForm1
         TabOrder = 1
         OnClick = CombinedOBJButtonClick
       end
-      object Memo2: TMemo
-        Left = 3
-        Top = 248
-        Width = 828
-        Height = 85
-        ScrollBars = ssVertical
-        TabOrder = 2
-      end
       object OBJ2DSFButton: TButton
-        Left = 347
-        Top = 339
+        Left = 331
+        Top = 257
         Width = 121
         Height = 25
         Caption = 'Convert OBJ to DSF'
-        TabOrder = 3
+        TabOrder = 2
         OnClick = OBJ2DSFButtonClick
       end
       object DSF2Edit: TEdit
@@ -236,7 +227,7 @@ object Form1: TForm1
         Width = 652
         Height = 21
         Enabled = False
-        TabOrder = 4
+        TabOrder = 3
         Text = 'C:\users\CSI\desktop\working\+13-062.txt'
       end
       object DSF2EditButton: TButton
@@ -245,7 +236,7 @@ object Form1: TForm1
         Width = 86
         Height = 25
         Caption = 'DSF.txt to Edit'
-        TabOrder = 5
+        TabOrder = 4
         OnClick = DSF2EditButtonClick
       end
       object WAVOBJRadioButton: TRadioButton
@@ -255,7 +246,7 @@ object Form1: TForm1
         Height = 17
         Caption = 'Wavefront OBJ'
         Checked = True
-        TabOrder = 6
+        TabOrder = 5
         TabStop = True
         OnClick = WAVOBJRadioButtonClick
       end
@@ -265,7 +256,7 @@ object Form1: TForm1
         Width = 113
         Height = 17
         Caption = 'X-Plane OBJ'
-        TabOrder = 7
+        TabOrder = 6
         Visible = False
         OnClick = XPOBJRadioButtonClick
       end
@@ -277,7 +268,7 @@ object Form1: TForm1
         Caption = 'Sea and Land Combined in single OBJ'
         Checked = True
         State = cbChecked
-        TabOrder = 8
+        TabOrder = 7
         Visible = False
       end
       object LandOBJButton: TButton
@@ -287,7 +278,7 @@ object Form1: TForm1
         Height = 25
         Caption = 'Load Land OBJ'
         Enabled = False
-        TabOrder = 9
+        TabOrder = 8
         Visible = False
         OnClick = CombinedOBJButtonClick
       end
@@ -297,7 +288,7 @@ object Form1: TForm1
         Width = 511
         Height = 21
         Enabled = False
-        TabOrder = 10
+        TabOrder = 9
         Text = 'C:\users\CSI\desktop\working\+13-062_TVSA.obj'
         Visible = False
       end
@@ -308,7 +299,7 @@ object Form1: TForm1
         Height = 25
         Caption = 'Load Sea OBJ'
         Enabled = False
-        TabOrder = 11
+        TabOrder = 10
         Visible = False
         OnClick = CombinedOBJButtonClick
       end
@@ -318,7 +309,7 @@ object Form1: TForm1
         Width = 511
         Height = 21
         Enabled = False
-        TabOrder = 12
+        TabOrder = 11
         Text = 'C:\users\CSI\desktop\working\+13-062_TVSA.obj'
         Visible = False
       end
@@ -332,7 +323,7 @@ object Form1: TForm1
         Items.Strings = (
           '+X+Y+Z'
           '+X+Z-Y')
-        TabOrder = 13
+        TabOrder = 12
       end
       object DimXEdit: TEdit
         Left = 83
@@ -340,7 +331,7 @@ object Form1: TForm1
         Width = 121
         Height = 21
         NumbersOnly = True
-        TabOrder = 14
+        TabOrder = 13
         Text = '5523'
         OnChange = DimXEditChange
       end
@@ -350,7 +341,7 @@ object Form1: TForm1
         Width = 121
         Height = 21
         NumbersOnly = True
-        TabOrder = 15
+        TabOrder = 14
         Text = '5523'
       end
       object ElevationEdit: TEdit
@@ -358,7 +349,7 @@ object Form1: TForm1
         Top = 142
         Width = 483
         Height = 21
-        TabOrder = 16
+        TabOrder = 15
         Text = 'C:\Users\CSI\Desktop\working'
         OnChange = ElevationEditChange
       end
@@ -368,7 +359,7 @@ object Form1: TForm1
         Width = 483
         Height = 21
         Enabled = False
-        TabOrder = 17
+        TabOrder = 16
         Text = 'C:\Users\CSI\Desktop\working'
       end
       object ScaleEdit: TEdit
@@ -376,7 +367,7 @@ object Form1: TForm1
         Top = 192
         Width = 121
         Height = 21
-        TabOrder = 18
+        TabOrder = 17
         Text = '1.000000'
         OnExit = ScaleEditExit
       end
@@ -391,7 +382,7 @@ object Form1: TForm1
         Items.Strings = (
           'Raster RAW'
           'OBJ')
-        TabOrder = 19
+        TabOrder = 18
         OnClick = ElevationSourceRadioGroupClick
       end
       object InterpolateCheckBox2: TCheckBox
@@ -402,7 +393,7 @@ object Form1: TForm1
         Caption = 'Interpolate for invalid data.'
         Checked = True
         State = cbChecked
-        TabOrder = 20
+        TabOrder = 19
       end
       object LowerEdit2: TEdit
         Left = 754
@@ -410,7 +401,7 @@ object Form1: TForm1
         Width = 31
         Height = 21
         NumbersOnly = True
-        TabOrder = 21
+        TabOrder = 20
         Text = '-430'
       end
       object UpperEdit2: TEdit
@@ -419,7 +410,7 @@ object Form1: TForm1
         Width = 43
         Height = 21
         NumbersOnly = True
-        TabOrder = 22
+        TabOrder = 21
         Text = '8848'
       end
       object MatchCheckBox: TCheckBox
@@ -430,7 +421,7 @@ object Form1: TForm1
         Caption = 'Match elevations of coastal vertices'
         Checked = True
         State = cbChecked
-        TabOrder = 23
+        TabOrder = 22
       end
     end
     object DSFToolTabSheet: TTabSheet
@@ -450,21 +441,13 @@ object Form1: TForm1
         Height = 13
         Caption = 'Output Name'
       end
-      object Memo3: TMemo
-        Left = 3
-        Top = 192
-        Width = 827
-        Height = 122
-        ScrollBars = ssVertical
-        TabOrder = 0
-      end
       object DSFToolButton: TButton
         Left = 360
-        Top = 320
+        Top = 184
         Width = 89
         Height = 35
         Caption = 'Run DSF Tool'
-        TabOrder = 1
+        TabOrder = 0
         OnClick = DSFToolButtonClick
       end
       object TXTButton: TButton
@@ -473,7 +456,7 @@ object Form1: TForm1
         Width = 105
         Height = 25
         Caption = 'Load .TXT'
-        TabOrder = 2
+        TabOrder = 1
         OnClick = TXTButtonClick
       end
       object DSFButton2: TButton
@@ -482,7 +465,7 @@ object Form1: TForm1
         Width = 105
         Height = 25
         Caption = 'Load .DSF'
-        TabOrder = 3
+        TabOrder = 2
         OnClick = DSFButton2Click
       end
       object FindDSFToolButton: TButton
@@ -491,23 +474,23 @@ object Form1: TForm1
         Width = 105
         Height = 25
         Caption = 'Find DSFTool'
-        TabOrder = 4
+        TabOrder = 3
         OnClick = FindDSFToolButtonClick
       end
       object RunDSFToolCheckBox: TCheckBox
         Left = 8
-        Top = 328
+        Top = 192
         Width = 185
         Height = 17
         Caption = 'Run DSFTool on Drag and Drop'
-        TabOrder = 5
+        TabOrder = 4
       end
       object OutputDirCombo: TComboBox
         Left = 144
         Top = 112
         Width = 670
         Height = 21
-        TabOrder = 6
+        TabOrder = 5
         OnExit = OutputDirComboExit
       end
       object OutputNameCombo: TComboBox
@@ -515,28 +498,28 @@ object Form1: TForm1
         Top = 141
         Width = 670
         Height = 21
-        TabOrder = 7
+        TabOrder = 6
       end
       object DSFToolPathCombo: TComboBox
         Left = 144
         Top = 27
         Width = 670
         Height = 21
-        TabOrder = 8
+        TabOrder = 7
       end
       object DSFCombo: TComboBox
         Left = 144
         Top = 85
         Width = 670
         Height = 21
-        TabOrder = 9
+        TabOrder = 8
       end
       object TXTCombo: TComboBox
         Left = 144
         Top = 58
         Width = 670
         Height = 21
-        TabOrder = 10
+        TabOrder = 9
         OnChange = TXTComboChange
       end
     end
@@ -544,9 +527,9 @@ object Form1: TForm1
       Caption = 'Misc'
       ImageIndex = 3
       object LoadOBJEdit: TEdit
-        Left = 109
+        Left = 136
         Top = 14
-        Width = 511
+        Width = 489
         Height = 21
         Enabled = False
         TabOrder = 0
@@ -555,34 +538,53 @@ object Form1: TForm1
       object LoadOBJButton: TButton
         Left = 3
         Top = 12
-        Width = 105
+        Width = 121
         Height = 25
         Caption = 'Load OBJ'
         TabOrder = 1
         OnClick = LoadOBJButtonClick
       end
       object AddDetailButton: TButton
-        Left = 355
-        Top = 326
+        Left = 3
+        Top = 95
         Width = 121
         Height = 25
         Caption = 'Add Detail to OBJ'
         TabOrder = 2
         OnClick = AddDetailButtonClick
       end
-      object Memo4: TMemo
-        Left = 3
-        Top = 56
-        Width = 814
-        Height = 257
-        ScrollBars = ssVertical
+      object ChangeElevationButton: TButton
+        Left = 184
+        Top = 95
+        Width = 105
+        Height = 25
+        Caption = 'Change Elevations'
         TabOrder = 3
+        OnClick = ChangeElevationButtonClick
+      end
+      object RasterButton: TButton
+        Left = 3
+        Top = 53
+        Width = 121
+        Height = 25
+        Caption = 'Load Elevation Raster'
+        TabOrder = 4
+        OnClick = RasterButtonClick
+      end
+      object RasterEdit: TEdit
+        Left = 136
+        Top = 55
+        Width = 489
+        Height = 21
+        Enabled = False
+        TabOrder = 5
+        Text = 'C:\users\CSI\desktop\working\+13-062.txt.elevation.raw'
       end
     end
   end
   object ProgressBar1: TProgressBar
     Left = 0
-    Top = 399
+    Top = 600
     Width = 852
     Height = 11
     Align = alBottom
@@ -590,11 +592,19 @@ object Form1: TForm1
   end
   object ProgressBar2: TProgressBar
     Left = 0
-    Top = 410
+    Top = 611
     Width = 852
     Height = 11
     Align = alBottom
     TabOrder = 2
+  end
+  object Memo: TMemo
+    Left = 8
+    Top = 335
+    Width = 844
+    Height = 259
+    ScrollBars = ssVertical
+    TabOrder = 3
   end
   object OpenTextFileDialog1: TOpenTextFileDialog
     Left = 816
