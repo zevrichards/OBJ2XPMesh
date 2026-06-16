@@ -7,10 +7,25 @@ uses
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtDlgs, Vcl.StdCtrls,
   System.StrUtils, System.generics.collections, Vcl.ComCtrls, system.Math,
   Vcl.ExtCtrls, Launch, WinApi.ShellApi, Winsock, RSCommonFunctions,
-  System.Generics.Defaults;
+  System.Generics.Defaults,
+  //
+  System.IOUtils;
+
+type TOSMNode = class
+  id: string;
+  lat, long: string;
+  constructor create(s: string);
+end;
+
+type TOSMWay = class
+  id: string;
+  nodes: TObjectList<TOSMNode>;
+  classification: string;
+  constructor create(s: string);
+end;
 
 type TVERTEX = class
-  id: integer;
+  id: int64;
   long,lat: real;  //degrees
   height: single;      //height in meters
   x,z: real;   //coordinates of the point's normal vector as a fraction (where +X = east, and +Z = south)
@@ -39,8 +54,18 @@ type TPATCH = class
   constructor create(s: String);
 end;
 
+
+type TPOLYGON = class
+  id: int64;
+  poly_def: integer;
+  poly_type: integer;
+  points: TObjectList<TOSMNode>;
+  constructor create(anOSMWay: TOSMWay);
+end;
+
 type TDSF = class
-  children: TObjectList<TPATCH>;
+  Patches: TObjectList<TPATCH>;
+  polygons: TObjectList<TPOLYGON>;
   constructor create;
 end;
 
@@ -154,6 +179,20 @@ type
     RasterEdit: TEdit;
     Memo: TMemo;
     BurnElevationsSourceRadioGroup: TRadioGroup;
+    ForestTabSheet: TTabSheet;
+    OSMButton: TButton;
+    OSMEdit: TEdit;
+    ForestButton: TButton;
+    ForestRuleEdit: TEdit;
+    ForestRuleButton: TButton;
+    DSF2Edit2: TEdit;
+    DSF2EditButton2: TButton;
+    Label5: TLabel;
+    ElevationEdit1: TEdit;
+    Label13: TLabel;
+    SeaLevelEdit1: TEdit;
+    ValidateDSFCheckBox: TCheckBox;
+    ResolutionRadioGroup: TRadioGroup;
     procedure ExtractPrimitives;
     procedure Convert2Triangles;
     procedure DSFButtonClick(Sender: TObject);
@@ -197,6 +236,20 @@ type
     procedure MemoChange(Sender: TObject);
     procedure RasterButtonClick(Sender: TObject);
     procedure ChangeElevationButtonClick(Sender: TObject);
+    procedure OSMButtonClick(Sender: TObject);
+    procedure ForestButtonClick(Sender: TObject);
+    procedure IndexPolyDefs(DSFTxt: string; Class_List, PolyDef_List: TStringList);
+    procedure RemoveForests(DSFTxt: string; PolyDef_List: TStringList);
+    procedure CreateRules(ForestRule: string; Class_List, PolyDef_List: TStringList);
+    function FindNode(Nodes_List: TObjectList<TOSMNode>; id: string): TOSMNode;
+    function ExtractNodes(OSM: TStreamReader): TObjectList<TOSMNode>;
+    function ExtractWays(OSM: TStreamReader): TObjectList<TOSMWay>;
+    function CreateForests(Nodes_List: TObjectList<TOSMNode>; Ways_List: TObjectList<TOSMWay>): TDSF;
+    procedure ExportDSF(DSF: TDSF; DSFTxt: string);
+    procedure ForestRuleButtonClick(Sender: TObject);
+    procedure DSF2EditButton2Click(Sender: TObject);
+    procedure ElevationEdit1Change(Sender: TObject);
+    procedure ValidateDSFText(DSFText: string);
   private
     { Private declarations }
   public
@@ -207,7 +260,7 @@ type
 
 var
   Form1: TForm1;
-  patch_count, prim_count, vert_count, face_count, RAW_rows: integer;
+  patch_count, prim_count, vert_count, face_count, RAW_rows, NewPolyDefs: integer;
   Total_VertexList, Land_VertexList, Sea_VertexList, VertexList: TObjectList<TVERTEX>;
   PrimitiveList: TObjectList<TPRIMITIVE>;
   Land_Vertex_list, Sea_Vertex_list: TObjectList<TVertex>;
@@ -216,6 +269,10 @@ var
   anOBJ: TOBJ;
   Extents: array [1..4] of real; //N,S,W,E
   RAW_array: array of array of Word;
+  Nodes_List: TObjectList<TOSMNode>;
+  Ways_List: TOBjectList<TOSMWay>;
+  Class_List, PolyDef_List: TStringList;
+  Forest_Poly_Defs: TList<integer>;
 
 const Delimiters: array of char = [' ', #9, '/', '\'];
       OBJ_delims: array of char = [' ', '_'];
@@ -240,6 +297,51 @@ until EOF
 convert all Primitives into mesh triangles
 
 export mesh triangles to OBJ with sea groups and land groups}
+constructor TPOLYGON.create(anOSMWay: TOSMWay);
+begin
+  self.id := StrToInt64(anOSMWay.id);
+  self.poly_def := Class_List.IndexOf(anOSMWay.classification);     //The Class_List indices matches the PolyDef_List indices
+  self.poly_type := 255;
+  self.points := anOSMWay.nodes;
+end;
+
+constructor TOSMWay.create(s: string);
+var x: integer;
+begin
+  s := trim(s);
+  x := 0;
+  While x <= Length(s.Split(Delimiters)) do
+  begin
+    If ContainsText(s.Split(Delimiters)[x], 'id=') then
+    begin
+      self.id := ReturnStringBetweenText(SurroundingQuotes(s),SurroundingQuotes(s),s.Split(Delimiters)[1]);
+      break;
+    end;
+    inc(x);
+  end;
+  self.nodes := TObjectList<TOSMNode>.create;
+end;
+
+constructor TOSMNode.create(s: string);
+var x: integer;
+begin
+  s := trim(s);
+  x := 0;
+  While x <= Length(s.Split(Delimiters)) do
+  begin
+    If ContainsText(s.Split(Delimiters)[x], 'id=') then
+      self.id := ReturnStringBetweenText(SurroundingQuotes(s),SurroundingQuotes(s),s.Split(Delimiters)[x]);
+    If ContainsText(s.Split(Delimiters)[x], 'lat=') then
+      self.lat := ReturnStringBetweenText(SurroundingQuotes(s),SurroundingQuotes(s),s.Split(Delimiters)[x]);
+    If ContainsText(s.Split(Delimiters)[x], 'lon=') then
+    begin
+      self.long := ReturnStringBetweenText(SurroundingQuotes(s),SurroundingQuotes(s),s.Split(Delimiters)[x]);
+      break;
+    end;
+    inc(x);
+  end;
+end;
+
 constructor TOBJ.create;
 begin
   inherited;
@@ -249,7 +351,8 @@ end;
 constructor TDSF.create;
 begin
   inherited;
-  self.children := TObjectList<TPATCH>.create;
+  self.patches := TObjectList<TPATCH>.create;
+  self.polygons := TObjectList<TPOLYGON>.create;
 end;
 
 constructor TOBJ_Group.create(aPatch: TPATCH);
@@ -274,7 +377,8 @@ begin
   begin
     MessageDlg('Cannot find the MeshID from line:'+sLineBreak+s+
                 sLineBreak+'when attempting to create a new OBJ Group.'+sLineBreak+
-                'Please ensure that your Groups are properly named and contain the text "Mesh*" where * is the ID number of the group, to ensure proper processing.'+
+                'Please ensure that your Groups are properly named and contain the text "Mesh*" where * is the ID number of the group, to ensure proper processing.'+sLineBreak+
+                'Also ensure that you have not mistakenly exported a group containing only lines from Sketchup.'+
                 sLineBreak+'Exiting!',
                mtError,mbOKCancel,0, mbOK);
     abort
@@ -411,11 +515,13 @@ end;
 
 procedure TForm1.ExtractPrimitives;
 var SL: TStringList;
-    x: integer;
+    x,y: integer;
     aPatch: TPATCH;
     aPrimitive: TPRIMITIVE;
     aVertex: TVERTEX;
     CurrentLine: string;
+
+    F: TextFile;
 
 begin
 
@@ -423,29 +529,36 @@ begin
 
   Memo.Lines.Add('Starting Extraction of Primitives...');
 
-  SL := TStringList.Create;
   try
-    SL.LoadFromFile(DSFTXTEdit.Text);   //    Open DSF.txt file
-    progressbar1.Max := SL.Count;
 
-    x:= 0;
-    While x <= SL.Count-1 do     //collect patches, their primitives and their vertices
+    progressbar1.Max := CountLines(DSFTXTEdit.Text);
+
+    AssignFile(F, DSFTXTEdit.Text);
+    Reset(F);
+    x:=0;
+    while not eof(F) do
     begin
+      ReadLn(F,CurrentLine);
+      inc(x);
+      progressbar1.position := x;
+      APplication.ProcessMessages;
 
-      CurrentLine := SL.Strings[x];
+
       If ContainsText(CurrentLine, 'BEGIN_PATCH') then
       begin
         If CurrentLine.Split(Delimiters)[4] = '1' then //only create patches for collision meshes, not overlays. ???Will this create issues for existing overlays?
         begin
           aPatch := TPATCH.create(CurrentLine);
-          aDSF.children.Add(aPatch);
+          aDSF.patches.Add(aPatch);
         end
         else
         begin
           //skip this entire patch
           repeat
+            ReadLn(F,CurrentLine);
             inc(x);
-          until ContainsText(SL.Strings[x], 'END_PATCH'){ or (x >= SL.Count-1)};
+            progressbar1.position := x;
+          until ContainsText(CurrentLine, 'END_PATCH')
         end;
       end;
 
@@ -462,16 +575,59 @@ begin
         aPrimitive.children.add(aVertex);
         SetExtents(aVertex);  //determine extents of mesh coverage
       end;
-      inc(x);
+
     end;
+
+//  SL := TStringList.Create;
+//  try
+//    SL.LoadFromFile(DSFTXTEdit.Text);   //    Open DSF.txt file
+//    progressbar1.Max := SL.Count;
+//
+//    x:= 0;
+//    While x <= SL.Count-1 do     //collect patches, their primitives and their vertices
+//    begin
+//
+//      CurrentLine := SL.Strings[x];
+//      If ContainsText(CurrentLine, 'BEGIN_PATCH') then
+//      begin
+//        If CurrentLine.Split(Delimiters)[4] = '1' then //only create patches for collision meshes, not overlays. ???Will this create issues for existing overlays?
+//        begin
+//          aPatch := TPATCH.create(CurrentLine);
+//          aDSF.patches.Add(aPatch);
+//        end
+//        else
+//        begin
+//          //skip this entire patch
+//          repeat
+//            inc(x);
+//          until ContainsText(SL.Strings[x], 'END_PATCH'){ or (x >= SL.Count-1)};
+//        end;
+//      end;
+//
+//
+//      If ContainsText(CurrentLine, 'BEGIN_PRIMITIVE') then
+//      begin
+//        aPrimitive := TPrimitive.create(CurrentLine);
+//        aPatch.children.add(aPrimitive);
+//      end;
+//
+//      If ContainsText(CurrentLine, 'PATCH_VERTEX') then
+//      begin
+//        aVertex := TVERTEX.create(CurrentLine, 1,2,3);
+//        aPrimitive.children.add(aVertex);
+//        SetExtents(aVertex);  //determine extents of mesh coverage
+//      end;
+//      inc(x);
+//    end;
 
     Memo.Lines.Add(IntToStr(patch_count)+' Total Patches');
     Memo.Lines.Add(IntToStr(prim_count)+' Total Primitives');
    Memo.Lines.Add(IntToStr(vert_count)+' Total Vertices');
 
   finally
-    SL.Free;
+//    SL.Free;
     Memo.Lines.Add('Done Extracting Primitives.');
+    CloseFile(F);
   end;
 end;
 
@@ -493,7 +649,8 @@ begin
   If (RAW_Array = nil) or (RAW_rows=0) then
   begin
     Memo.Lines.add('Reading elevations from RAW...');
-    ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, 	StrToFloat(UpperEdit.Text), StrToFloat(LowerEdit.Text), InterpolateCheckbox1.checked);
+    //RAW_rows is set here as an out value
+    ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSFTXTEdit.text)+'.elevation.raw', RAW_rows, 	StrToFloat(UpperEdit.Text), StrToFloat(LowerEdit.Text), InterpolateCheckbox1.checked);
     Memo.Lines.Add('Finished reading elevations.');
   end;
 
@@ -518,6 +675,498 @@ begin
     DSFToolPathCombo.Text := OpenTextFileDialog1.FileName;
   end;
 end;
+
+procedure TForm1.ForestButtonClick(Sender: TObject);
+var OSMStream: TStreamReader;
+    s, backupname: String;
+
+begin
+  s := StringReplace((DateToStr(Now)),'/','-',[rfReplaceAll]);
+  s := s+'_'+StringReplace((TimeToStr(Now)),':','-',[rfReplaceAll]);
+  SetLength(s,length(s)-3);
+  backupname := DSF2Edit2.Text;
+  backupname.Insert(length(backupname)-4,'.'+s);
+  CopyFile(pchar(DSF2Edit2.text), pchar(backupname), true);
+{
+
+Load DSF.txt
+Index all Polygon Defintions
+Remove all Polygon Definitions which reference ".for" and all Polygons which reference those indexed Poly_defs
+Remove ".for" Polygon Defintions from lists
+Load Forest Rules files and create new classes and Polygon Definitions
+Load OSM line by line and extract nodes and ways
+Create Forest polygons from nodes and ways
+Add new Polygon Definitions from Rules to bottom of Polygon Defintion section of DSF.txt
+COnvert Ways to now polygons windings and add themv to bottom of DSF.txt
+}
+
+  ProgressBar1.Position := 0;
+  ProgressBar2.Position := 0;
+  ProgressBar2.max := 5;
+  //N
+  Extents[1]:= -999;
+  //S
+  Extents[2]:= 999;
+  //W
+  Extents[3]:= 999;
+  //E
+  Extents[4]:= -999;
+
+
+//  OSM := TStringList.Create;
+//  OSMFile :=   TFileStream.Create(OSMEdit.Text);
+//  DSFSR := TStreamReader.Create(DSF2Edit2.text);
+  OSMStream := TStreamReader.Create(OSMEdit.Text);
+  Forest_Poly_Defs := TList<integer>.create;
+  Class_List := TStringList.Create;
+  PolyDef_List := TStringList.Create;
+
+
+  try
+//    Memo.Lines.Add('Loading OSM File...');
+//    OSM.LoadFromFile(OSMEdit.Text);
+//    Memo.Lines.Add('OSM Loaded.');
+//    ProgressBar2.Position := ProgressBar2.Position +1;
+//    Application.ProcessMessages;
+
+    Memo.Lines.Add('Indexing polygon defintions...');
+    IndexPolyDefs(DSF2Edit2.text, Class_List, PolyDef_List);
+    Memo.Lines.Add('Definitions indexed.');
+
+//    Memo.Lines.Add('Removing forests from DSF.txt...');
+//    RemoveForests(DSF2Edit2.text, PolyDef_List);
+//    Memo.Lines.Add('Forests removed.');
+
+
+    Memo.Lines.Add('Indexing forest rules file...');
+    CreateRules(ForestRuleEdit.Text, Class_List, PolyDef_List);
+    Memo.Lines.Add('Rules created.');
+
+    Memo.Lines.Add('Extracting Nodes...');
+    Nodes_List := ExtractNodes(OSMStream);
+    Memo.Lines.Add('Nodes extracted.');
+    ProgressBar2.Position := ProgressBar2.Position +1;
+    Application.ProcessMessages;
+
+    Memo.Lines.Add('Extracting Ways...');
+    Ways_List := ExtractWays(OSMStream);
+    Memo.Lines.Add('Ways extracted.');
+    ProgressBar2.Position := ProgressBar2.Position +1;
+    Application.ProcessMessages;
+
+    Memo.Lines.Add('Converting Ways to Polygons and creating DSF...');
+    aDSF := CreateForests(Nodes_List, Ways_List);
+    Memo.Lines.Add('DSF created.');
+    ProgressBar2.Position := ProgressBar2.Position +1;
+    Application.ProcessMessages;
+
+    Memo.Lines.Add('Exporting DSF...');
+    ExportDSF(aDSF, DSF2Edit2.text);
+    Memo.Lines.Add('Finished!');
+    ProgressBar2.Position := ProgressBar2.Position +1;
+    Memo.Lines.Add('*********************************************************');
+//    aDSF.Free;
+  finally
+//    OSM.Free
+    OSMStream.Free;
+    Forest_Poly_Defs.Free;
+//    DSFStream.free;
+  end;
+
+end;
+
+procedure TForm1.IndexPolyDefs(DSFTxt: string; Class_List, PolyDef_List: TStringList);
+var s: string;
+    DSF_SL: TStringList;
+    x, p: integer;
+
+begin
+{Collect all the Polygon Definitions from the DSF.txt}
+
+  DSF_SL := TStringList.Create;
+  p := 0;
+
+  try
+    DSF_SL.LoadFromFile(DSFTxt);
+  finally
+  For x := 0 to DSF_SL.Count-1 do
+   begin
+    s := DSF_SL[x];
+    If ContainsText(s, 'POLYGON_DEF ') then
+    begin
+
+      Class_List.Add(s.Split([' '])[High(s.Split([' ']))]);
+      PolyDef_List.Add(s.Split([' '])[High(s.Split([' ']))]);
+      If ContainsText(s, '.for') then       //if this references a Forest definition
+        Forest_Poly_Defs.Add(p);            //store the current index of the forest polygon defintion. We will delete these defintions from the file later.
+      inc(p);
+    end;
+   end;
+  end;
+  NewPolyDefs := PolyDef_list.count; //determine whwat position the new defintions will be added at.
+end;
+
+procedure TForm1.RemoveForests(DSFTxt: string; PolyDef_List: TStringList);
+var DSF_SL: TStringList;
+    def: string;
+    def_int, d,x,y,z: integer;
+begin
+//{Remove all references to forest Polygon Defs and windings which use it}
+//  DSF_SL := TStringList.Create;
+//
+//  try
+//    DSF_SL.LoadFromFile(DSFTxt);
+//
+//    For Def_int in Forest_Poly_Defs do
+//    begin
+//      x := DSF_SL.Count-1;
+//      While x>0 do
+//      begin
+//        //Find all "BEGIN POLYGON X...' upto 'END POLYGON' and remove those lines
+//        If ContainsText(DSF_SL[x], 'BEGIN_POLYGON '+IntToStr(def_int)) then
+//        begin
+//          y := x;
+//
+//          While ((y < DSF_SL.Count-1) and (DSF_SL[y]<>'END_POLYGON'))  do
+//            inc(y);
+//
+//          For z := y downto x do
+//            DSF_SL.Delete(z);
+//        end;
+//        //Find 'POLYGON_DEF ***.for' and remove all references
+//        If DSF_SL[x] = 'POLYGON_DEF '+PolyDef_List[def_int] then
+//          DSF_SL.Delete(x);
+//        dec(x);
+//      end;
+//    end;
+//
+//    DSF_SL.SavetoFile(DSFTxt);
+//  finally
+//    DSF_SL.Free;
+//  end;
+
+end;
+
+procedure TForm1.CreateRules(ForestRule: string; Class_List,PolyDef_List: TStringList);
+var Rule_SL: TStringList;
+    x: integer;
+    s: string;
+begin
+{Forest Rules should have the following format:
+
+"bush"			  lib/g8/wetl_wdy_vhot_rain.for
+"Dense Veg"		lib/g8/rainforest_vhot_rain.for
+"Single Tree"	lib/g8/rainforest_sp_vhot_rain.for
+"Urban Tree"	lib/g8/broad_vhot_wet.for
+
+We will place the first value in quotes as the classification of the polygon in the OSM, and the second value as the matching polygron definition to be used from the XP11 library
+}
+
+  Rule_SL:= TStringList.Create;
+
+
+  try
+    Rule_SL.LoadFromFile(ForestRule);
+    For x := 0 to Rule_SL.Count-1 do
+    begin
+      s := trim(Rule_SL[x]);
+      Class_List.Add(ReturnStringBetweenText(SurroundingQuotes(s), SurroundingQuotes(s), s.Split([#9])[0]));           //classification
+      PolyDef_List.Add(s.Split([#9])[High(s.Split([#9]))]);                                                            //poly defintion
+    end;
+  finally
+    Rule_SL.Free;
+  end;
+end;
+
+procedure TForm1.ForestRuleButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'RULE files (*.rul)|*.RUL';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    ForestRuleEdit.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
+
+function NodeAsVertex(aNode: TOSMNode): TVERTEX;
+{represent a node as TVERTEX object}
+begin
+  result.id := StrToInt64(aNode.id);
+  result.long := StrToFloat(aNode.long);
+  result.lat := StrToFloat(aNode.lat);
+  result.height := 0;
+  result.x := 0;
+  result.z := 0;
+  result.primitive_id := 0;
+end;
+
+function TForm1.ExtractNodes(OSM: TStreamReader): TObjectList<TOSMNode>;
+var s: string;
+
+begin
+  result := TObjectList<TOSMNode>.create;
+
+  OSM.Rewind;    //go back to the top of the stream
+
+  ProgressBar1.Position := 0;
+  ProgressBar1.Max := OSM.BaseStream.size;
+
+  While not OSM.EndOfStream do
+  begin
+    ProgressBar1.Position := OSM.BaseStream.Position;
+    s := OSM.ReadLine;
+    If ContainsText(s, '<node id=') then //if a node is found
+      result.Add(TOSMNode.Create(s));    //create a node and add it to the list
+  end;
+
+  Memo.Lines.Add('Extracted '+IntToStr(result.Count)+' nodes');
+
+  //Numerically Sort the list by ID
+  Memo.Lines.Add('Sorting nodes...');
+
+  result.Sort(TComparer<TOSMNode>.Construct(
+  function (const L,R: TOSMNode): integer
+  begin
+    result := CompareUInt64(StrToInt64(L.id), StrToInt64(R.id));
+  end
+  ));
+
+  Memo.Lines.Add('Nodes sorted.');
+
+end;
+
+function TForm1.FindNode(Nodes_List: TObjectList<TOSMNode>; id: string): TOSMNode;
+var aNode: TOSMNode;
+    StartingID, Difference, x: Int64;
+begin
+  result := nil;
+  id := trim(id);
+
+  id := ReturnStringBetweenText(SurroundingQuotes(id),SurroundingQuotes(id),id.split(Delimiters)[1]);
+
+  //Find starting node id in list
+  //find difference between the ID we are looking for and the first ID in the list
+  //use the difference to find the estimated position of the ID we want in the list
+  //if the ID we want is not at that exact position, determine the ID at that position
+  //if the ID at that position is greater than what we want, start a search backward, else start searching forward
+  //this should greeatly speed up the search, up until the difference between the number of nodes and the values of their IDs get ridiculously large.
+
+  StartingID := StrToInt64(Nodes_List[0].id);
+  Difference := StrToInt64(id) - StartingID;
+
+  If Difference >= Nodes_List.Count-1 then
+    Difference := Nodes_List.Count-1;
+
+  result := Nodes_List[Difference];
+
+  If result.id <> id then
+  begin
+    If StrToInt64(result.id) > StrToInt64(id) then
+    begin
+      For x := Difference downto 0 do
+      begin
+        If  Nodes_List[x].id = id then
+        begin
+          result := Nodes_List[x];
+          break;
+        end;
+      end;
+    end
+    else
+    begin
+      For x := Difference to Nodes_List.Count-1 do
+      begin
+        If  Nodes_List[x].id = id then
+        begin
+          result := Nodes_List[x];
+          break;
+        end;
+      end;
+    end;
+  end;
+
+//  For aNode in Nodes_List do
+//  begin
+//    If aNode.id = id then
+//    begin
+//      result := aNode;
+//      break;
+//    end;
+//  end;
+
+end;
+
+function TForm1.ExtractWays(OSM: TStreamReader): TObjectList<TOSMWay>;
+var s: string;
+begin
+  result := TObjectList<TOSMWay>.create;
+
+  OSM.Rewind;
+
+  ProgressBar1.Position := 0;
+  ProgressBar1.Max := OSM.BaseStream.size;
+
+  While not OSM.EndOfStream do
+  begin
+    s := OSM.ReadLine;
+
+    ProgressBar1.Position := OSM.BaseStream.Position;
+    If ContainsText(s, '<way id=') then                     //if a way is found
+      result.Add(TOSMWay.Create(s));                        //create a way and add it to the list
+    If ContainsText(s, '<nd ref=') then                     //if a node reference is found
+    begin
+      result.Last.nodes.Add(FindNode(Nodes_List, s));      //find the corresponding OSMNode by ID and add it
+      SetExtents(NodeAsVertex(result.Last.nodes.Last));             //determine the extent of coverage of the area
+    end;
+    If ContainsText(s, '<tag k="class"') then               //if a "class" tag is found
+      result.Last.classification := ReturnStringBetweenText('v='+SurroundingQuotes(s),SurroundingQuotes(s),s);                        //set the value of the class to later detemine the Polygon Definition
+  end;
+  Memo.Lines.Add('Extracted '+IntToStr(result.Count)+' Ways');
+end;
+
+function TForm1.CreateForests(Nodes_List: TObjectList<TOSMNode>; Ways_List: TObjectList<TOSMWay>): TDSF;
+var aWay: TOSMWay;
+begin
+  result := TDSF.create;
+
+  ProgressBar1.Position := 0;
+  ProgressBar1.Max := Ways_List.Count;
+
+  For aWay in Ways_List do
+  begin
+    ProgressBar1.Position := ProgressBar1.Position + 1;
+    result.polygons.Add(TPOLYGON.Create(aWay));
+  end;
+end;
+
+procedure TForm1.ExportDSF(DSF: TDSF; DSFTxt: string);
+var DSF_SL: TStringList;
+    aPoly: TPOLYGON;
+    aNode: TOSMNode;
+    S,W, def: string;
+    d,x: integer;
+
+begin
+
+//S := FloatToStr(Int((Floor(Extents[2]))));
+//  If not ((S[1]='+') or (S[1]='-')) then
+//    S := '+'+S;     //add leading + if necessary
+//
+//  W := FloatToStr(Int((Floor(Extents[3]))));
+//  If Length(W)<4 then
+//    W := W[1]+'0'+W[2]+W[3];     //add leading 0 if necessary
+//
+//  DSFStream:= TStreamWriter.Create(ExtractFilePath(OSMEdit.text)+S+W+'.txt');
+//
+//  DSF_SL := TStringList.Create;
+//
+//  try
+//    DSF_SL.Text := ''+
+//
+//'I'+sLineBreak+
+//'800'+sLineBreak+
+//'DSF2TEXT'+sLineBreak+
+//''+sLineBreak+
+//'# File created by OBJ2XPMesh (c) Zev Richards of Richer Simulations 2021'+sLineBreak+
+//''+sLineBreak+
+//'PROPERTY sim/planet earth'+sLineBreak+
+//'PROPERTY sim/overlay 1'+sLineBreak+
+//'PROPERTY sim/creation_agent OBJ2XPMesh'+sLineBreak+
+//'PROPERTY sim/west '+sLineBreak+
+//'PROPERTY sim/east '+sLineBreak+
+//'PROPERTY sim/north '+sLineBreak+
+//'PROPERTY sim/south '+sLineBreak+
+//'PROPERTY sim/exclude_net '+sLineBreak+
+//'PROPERTY sim/exclude_bch '+sLineBreak+
+////'PROPERTY sim/exclude_obj '+sLineBreak+
+//'PROPERTY sim/exclude_fac '+sLineBreak+
+//'PROPERTY sim/exclude_for '+sLineBreak;
+//'POLYGON_DEF forests/Europe/broad.for'+sLineBreak;
+//
+//    {PROPERTY sim/ DSF coverage area}
+//    DSF_SL.Strings[9] := DSF_SL.Strings[9] + FloatToStr(Int((Floor(Extents[3]))));    //W
+//    DSF_SL.Strings[10] := DSF_SL.Strings[10] + FloatToStr(Int((Ceil(Extents[4]))));    //E
+//    DSF_SL.Strings[11] := DSF_SL.Strings[11] + FloatToStr(Int((Ceil(Extents[1]))));    //N
+//    DSF_SL.Strings[12] := DSF_SL.Strings[12] + FloatToStr(Int((Floor(Extents[2]))));  //S
+
+    DSF_SL := TStringList.Create;
+
+    try
+      DSF_SL.LoadFromFile(DSFTxt);
+
+      x := 0;
+      repeat
+        inc(x);
+      until ContainsText(DSF_SL[x], 'PROPERTY sim/creation_agent');
+
+      DSF_SL.Strings[x] := 'PROPERTY sim/creation_agent OBJ2XP Mesh';
+
+      repeat
+        inc(x);
+      until ContainsText(DSF_SL[x], 'PROPERTY sim/exclude_net');
+
+      {PROPERTY sim/excludes}
+
+      DSF_SL.Strings[x] := 'PROPERTY sim/exclude_net ' + FloatToStr(((Extents[3])))+'/'+FloatToStr(((Extents[2])))+'/'+FloatToStr(((Extents[4])))+'/'+FloatToStr(((Extents[1])));
+      DSF_SL.Strings[x+1] := 'PROPERTY sim/exclude_bch ' + FloatToStr(((Extents[3])))+'/'+FloatToStr(((Extents[2])))+'/'+FloatToStr(((Extents[4])))+'/'+FloatToStr(((Extents[1])));
+      DSF_SL.Strings[x+2] := 'PROPERTY sim/exclude_obj ' + FloatToStr(((Extents[3])))+'/'+FloatToStr(((Extents[2])))+'/'+FloatToStr(((Extents[4])))+'/'+FloatToStr(((Extents[1])));
+      DSF_SL.Strings[x+3] := 'PROPERTY sim/exclude_fac ' + FloatToStr(((Extents[3])))+'/'+FloatToStr(((Extents[2])))+'/'+FloatToStr(((Extents[4])))+'/'+FloatToStr(((Extents[1])));
+      DSF_SL.Strings[x+4] := 'PROPERTY sim/exclude_for ' + FloatToStr(((Extents[3])))+'/'+FloatToStr(((Extents[2])))+'/'+FloatToStr(((Extents[4])))+'/'+FloatToStr(((Extents[1])));
+
+
+      {POLYGON_DEFs}
+      repeat
+        inc(x);
+      until ContainsText(DSF_SL[x], 'POLYGON_DEF');     //beginning of polygon definitions
+
+      repeat
+        inc(x);
+      until not ContainsText(DSF_SL[x], 'POLYGON_DEF'); //end of polygon defintions
+
+      For d := NewPolyDefs to PolyDef_List.count-1 do
+      begin
+        DSF_SL.Insert(x, 'POLYGON_DEF '+PolyDef_List[d]);
+        inc(x);
+      end;
+
+      DSF_SL.SaveToFile(DSFTxt);
+
+
+      {POLYGONs}
+      ProgressBar1.Position := 0;
+      ProgressBar1.Max := aDSF.polygons.Count;
+
+      For aPoly in aDSF.polygons do
+      begin
+        DSF_SL.Clear;
+        ProgressBar1.Position := ProgressBar1.Position + 1;
+        DSF_SL.Add('BEGIN_POLYGON '+IntToStr(aPoly.poly_def){'0'}+' 255 2'+sLineBreak+'BEGIN_WINDING');
+        For aNode in aPOly.points do
+  //      For x := aPoly.points.Count-1 downto 0 do
+  //      begin
+  //        aNode := aPoly.points[x];
+          DSF_SL.Add('POLYGON_POINT '+aNode.long+' '+aNode.lat);
+  //      end;
+        DSF_SL.Add('END_WINDING'+sLineBreak+'END_POLYGON');
+        With TFile.AppendText(DSFTxt) do
+        begin
+          Write(DSF_SL.Text);
+          Free;
+        end;
+      end;
+
+  //    DSF_SL.SaveToFile(ExtractFilePath(OSMEdit.text)+S+W+'.txt');
+      Memo.Lines.Add('DSF saved as '+ExtractFilePath(OSMEdit.text)+S+W+'.txt');
+  finally
+    DSF_SL.Free;
+    Class_List.Free;
+    PolyDef_List.Free;
+  end;
+
+end;
+
+
+
 
 procedure TForm1.FormCreate(Sender: TObject);
 var Comps: Array of TComponent;
@@ -566,7 +1215,7 @@ var aPrimitive: TPRIMITIVE;
 begin
 
   Memo.Lines.Add('Starting conversion of primitives to trianglulated Mesh...');
-  For aPatch in aDSF.children do
+  For aPatch in aDSF.patches do
   begin
     aGroup := TOBJ_Group.create(aPatch);
     anOBJ.children.add(aGroup);
@@ -659,6 +1308,16 @@ begin
     MessageDlg('DSFTool experiences issues processing elevation RAW files larger than 5523x5523px (approximately 20m/px or lower). Are you sure you want to continue?', mtWarning, mbOkCancel, 0, mbOK)
 end;
 
+procedure TForm1.DSF2EditButton2Click(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'TXT files (*.txt)|*.TXT';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    DSF2Edit2.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
+
 procedure TForm1.DSF2EditButtonClick(Sender: TObject);
 begin
   OpenTextFileDialog1.Filter := 'TXT files (*.txt)|*.TXT';
@@ -678,7 +1337,7 @@ begin
     DSFCombo.Text := OpenTextFileDialog1.FileName;
     TXTCombo.text := '';
     OutputDirCombo.text := ExtractFilePath(DSFCombo.Text);
-    OutputNameCombo.Text := ChangeFileExt(ExtractFileName(DSFCombo.Text), '')+'.dsf';
+    OutputNameCombo.Text := ChangeFileExt(ExtractFileName(DSFCombo.Text), '')+'.txt';
   end;
 end;
 
@@ -693,12 +1352,108 @@ begin
 end;
 
 
+procedure TForm1.ValidateDSFText(DSFText: string);
+var DSF_SL: TStringList;
+    x,d: integer;
+
+begin
+
+    DSF_SL := TStringList.Create;
+    try
+      DSF_SL.LoadFromFile(DSFText);
+
+
+      Memo.Lines.Add('Removing empty patches and primitives...');
+
+      x := 0;
+      d := 0;
+
+//      v := 0;
+
+
+//      //get extents of DSF from header
+//      while x < DSF_SL.Count-1 do
+//      begin
+//        if DSF_SL.Strings[x].Contains('PROPERTY sim/west') then
+//        begin
+//          Extents[1] :=  StrToInt(DSF_SL.Strings[x+2].Split(' ')[2]) //N
+//          Extents[2] :=  StrToInt(DSF_SL.Strings[x+3].Split(' ')[2]) //S
+//          Extents[3] :=  StrToInt(DSF_SL.Strings[x].Split(' ')[2]) //W
+//          Extents[4] :=  StrToInt(DSF_SL.Strings[x+1].Split(' ')[2]) //E
+//          break;
+//        end;
+//      end;
+
+//      x := 0;
+
+      while x < DSF_SL.Count-1 do
+      begin
+//        //ensure vertices/points are within DSF bounds to prevent vertex sinking error
+//        If (DSF_SL.Strings[x].Contains('VERTEX') or DSF_SL.Strings[x].Contains('POINT')) then
+//        begin
+//          long := FloatToStr(DSF_SL.Strings[x].Split(' ')[1]);
+//          lat := FloatToStr(DSF_SL.Strings[x].Split(' ')[2]);
+//
+//          if long < Extents[3] then
+//            long := Extents[3]
+//        end;
+
+        //remove empty primitives, i.e.  BEGIN_PRIMITIVE immediately followed by END_PRIMITIVE
+        If DSF_SL.Strings[x].Contains('BEGIN_PRIMITIVE') then
+        begin
+          If DSF_SL.Strings[x+1].Contains('END_PRIMITIVE') then
+          begin
+            DSF_SL.Delete(x);
+            DSF_SL.Delete(x);
+            inc(d)
+          end
+          else
+            inc(x);
+        end
+        else
+            inc(x);
+      end;
+      Memo.Lines.Add('Removed '+IntToStr(d)+' empty primitives.');
+
+      x:=0;
+      d:= 0;
+
+      while x < DSF_SL.Count-1 do
+      begin
+        //remove empty patches, i.e.  BEGIN_PATCH immediately followed by END_PATCH
+        If DSF_SL.Strings[x].Contains('BEGIN_PATCH') then
+        begin
+          If DSF_SL.Strings[x+1].Contains('END_PATCH') then
+          begin
+            DSF_SL.Delete(x);
+            DSF_SL.Delete(x);
+            inc(d)
+          end
+          else
+            inc(x);
+        end
+        else
+            inc(x);
+      end;
+
+      Memo.Lines.Add('Removed '+IntToStr(d)+' empty patches.');
+      DSF_SL.SaveToFile(DSFText);
+    finally
+      DSF_SL.Free;
+    end;
+end;
+
 procedure TForm1.DSFToolButtonClick(Sender: TObject);
 var log: string;
 begin
   log := '';
   If TXTCombo.Text <> '' then
   begin
+    If ValidateDSFCheckbox.Checked then
+    begin
+      Memo.Lines.Add('Validating text file before processing...');
+      ValidateDSFText(TXTCombo.text);
+    end;
     Memo.Lines.Add('Running DSFTool -text2dsf "'+TXTCombo.text+'" "'+OutputDirCombo.Text+OutputNameCombo.text+'" ...');
     ConsoleStarterWithOutput(ExtractFileName(DSFToolPathCombo.Text), ExtractFilePath(DSFToolPathCombo.Text), ['-text2dsf','"'+TXTCombo.text+'"','"'+OutputDirCombo.Text+OutputNameCombo.text+'"'], 1, log);
   end;
@@ -726,9 +1481,10 @@ begin
 end;
 
 procedure TForm1.OBJ2DSFButtonClick(Sender: TObject);
-var DSF_SL, Combined_OBJ_SL, Land_OBJ_SL, Sea_OBJ_SL, RoadNetwork: TStringList;
+var DSF_SL, Combined_OBJ_SL, RoadNetwork: TStringList;
 
 begin
+
   patch_count := 0;
   prim_count := 0;
   vert_count := 0;
@@ -802,6 +1558,16 @@ begin
 
 end;
 
+
+procedure TForm1.OSMButtonClick(Sender: TObject);
+begin
+  OpenTextFileDialog1.Filter := 'OSM files (*.osm)|*.OSM';
+  OpenTextFileDialog1.Options := [];
+  If OpenTextFileDialog1.Execute() then
+  begin
+    OSMEdit.Text := OpenTextFileDialog1.FileName;
+  end;
+end;
 
 function TForm1.ExtractRoadNetwork(DSF_SL: TStringList): TStringList;
 var x,y,z: integer;
@@ -937,6 +1703,7 @@ var lon,lat,height, v2,v3, x,g: integer;
     aGroup, anotherGroup: TOBJ_Group;
     aFace: TOBJ_Face;
     aVertex, anotherVertex: TVERTEX;
+    h,nh: real;
 
 begin
 
@@ -1050,37 +1817,102 @@ begin
   end;
   Memo.Lines.Add('Finished collecting groups, verts and faces.');
 
+  //find coverage area of OBJ
+  for aGroup in anOBJ.children do
+  begin
+    for aVertex in aGroup.vertices do
+      SetExtents(aVertex);
+  end;
+
+
+  //readelevations from raster RAW
+  //if source is OBJ
+    //set all vert heights from OBJ, unless vert height = -32768
+  //if source is Raster RAW
+    //set all heights for water verts from Raster RAW
+    {we are skipping this section and instead manually harcoding all heights into the DSF
+    //if resolution is 1m
+      //set all heights for terrain to -32768
+    //else
+    }
+      //set all heights for terrain from Raster RAW
+
+  If RAW_Array = nil then
+  begin
+    Memo.Lines.add('Reading elevations from RAW...');
+    //RAW_rows is set here as an out value
+    ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, StrToFloat(UpperEdit2.Text), StrToFloat(LowerEdit2.Text), InterpolateCheckbox2.checked);
+    Memo.Lines.Add('Finished reading elevations.');
+  end;
+
+  progressbar1.Max := anOBJ.children.Count;
+  progressbar1.Position := 0;
+  Memo.Lines.Add('Setting elevations of verts...');
+  For aGroup in anOBJ.children do
+  begin
+    For aVertex in aGroup.vertices do
+    begin
+    If ((ElevationSourceRadioGroup.ItemIndex = 1) and (aVertex.height <> -32768)) then  //source was from OBJ and already set to a valid velevation
+      continue
+    else
+      aVertex.height := FindElevation(aVertex, RAW_rows); //from the RASTER RAW
+    end;
+    progressbar1.Position := progressbar1.Position +1;
+    Application.ProcessMessages;
+  end;
+  Memo.Lines.add('Finished applying elevations to verts...');
+
+
+{
   //Set heights of all water vertices from RASTER RAW if we are using it as a source.
   //Water Verts must always have their elevations hard coded into the DSF
   //If the source is OBJ, then they will have been pulled directly from the OBJ elevations.
-  If ElevationSourceRadioGroup.ItemIndex = 0 then
+
+  If ((ElevationSourceRadioGroup.ItemIndex = 0) or (ResolutionRadioGroup.ItemIndex = 1)) then  //raster RAW
   begin
     If RAW_Array = nil then
     begin
       Memo.Lines.add('Reading elevations from RAW...');
+      //RAW_rows is set here as an out value
       ReadElevations(ElevationEdit.text+'\'+ExtractFileName(DSF2Edit.text)+'.elevation.raw', RAW_rows, StrToFloat(UpperEdit2.Text), StrToFloat(LowerEdit2.Text), InterpolateCheckbox2.checked);
       Memo.Lines.Add('Finished reading elevations.');
     end;
 
     progressbar1.Max := anOBJ.children.Count;
     progressbar1.Position := 0;
+    Memo.Lines.Add('Setting elevations of verts...');
     For aGroup in anOBJ.children do
     begin
-      If aGroup.ter_def = '0' then
+      If aGroup.ter_def = '0' then    //water
       begin
         For aVertex in aGroup.vertices do
-          aVertex.height := FindElevation(aVertex, RAW_rows);
+          aVertex.height := FindElevation(aVertex, RAW_rows);   //hardcoded water vert
       end
       else
       begin
-        For aVertex in aGroup.vertices do
-          aVertex.height := -32768;
+        If ((ElevationSourceRadioGroup.ItemIndex = 0) and (ResolutionRadioGroup.ItemIndex = 0)) then   //Raster RAW source and 1m resolution
+        begin
+          For aVertex in aGroup.vertices do
+            aVertex.height := -32768;   //default value used when pulling elevations from Raster RAW  at 1m resolution
+        end;
+
+        //if the vertex height pulled from the OBJ is already -32768 but the resolution is 14cm then we need to set the elevation from the Raster RAW
+        If (ElevationSourceRadioGroup.ItemIndex = 1) then
+        begin
+          For aVertex in aGroup.vertices do
+            If aVertex.height = -32768 then
+            begin
+              aVertex.height := FindElevation(aVertex, RAW_rows); //change from -32768 to an elevation from the RASTER RAW
+            end;
+        end;
       end;
       progressbar1.Position := progressbar1.Position +1;
       Application.ProcessMessages;
     end;
-    Memo.Lines.add('Finished applying elevations to water verts.');
+    Memo.Lines.add('Finished applying elevations to verts...');
   end;
+}
+
 
   //Match coastal land vertices to their water conterparts.
   if MatchCheckbox.Checked then
@@ -1141,7 +1973,7 @@ begin
     DSF_SL.Insert(x,'BEGIN_PATCH '+aGroup.ter_def+' 0.000000 -1.000000 1 7');
     inc(x);
     //if this is the first patch, insert the road network
-    if progressbar1.Position = 1 then
+    if (progressbar1.Position = 1) and (RoadNetwork<>nil) then
     begin
       Memo.Lines.Add('Re-inserting roads...');
       For y := 0 to RoadNetwork.Count-1 do
@@ -1711,6 +2543,7 @@ begin
     progressbar2.Position := 1;
 
     Memo.Lines.add('Reading elevations from RAW...');
+    //RAW_rows is set here as an out value
     ReadElevations(RasterEdit.Text, RAW_rows, 	StrToFloat(UpperEdit.Text), StrToFloat(LowerEdit.Text), InterpolateCheckbox1.checked);
     Memo.Lines.Add('Finished reading elevations.');
 
@@ -1766,15 +2599,25 @@ begin
   end;
 end;
 
+procedure TForm1.ElevationEdit1Change(Sender: TObject);
+begin
+  SeaLevelEdit.Text := ElevationEdit1.Text;
+  SeaLevelEdit1.Text := ElevationEdit1.Text;
+  ElevationEdit.Text := ElevationEdit1.Text;
+end;
+
 procedure TForm1.ElevationEditChange(Sender: TObject);
 begin
-  SeaLevelEdit.Text := ElevationEdit.Text
+  SeaLevelEdit.Text := ElevationEdit.Text;
+  SeaLevelEdit1.Text := ElevationEdit.Text;
+  ElevationEdit1.Text := ElevationEdit.Text;
 end;
 
 
 
 procedure TForm1.ElevationSourceRadioGroupClick(Sender: TObject);
 begin
+{
   If ElevationSourceRadioGroup.ItemIndex = 0 then
   begin
     InterpolateCheckBox2.Enabled := true;
@@ -1788,63 +2631,107 @@ begin
     UpperEdit2.Enabled := false;
     LowerEdit2.Enabled := false;
   end;
+}
 end;
 
 procedure TForm1.ExportOBJ(ScaleFactor: integer); //scale factor is usually 1 when re-exporting an OBJ and usually 100,000 when creating an OBJ from a DSF.
-var SL: TStringList;
+var Writer: TStreamWriter;
+//    SL: TStringList;
     aGroup: TOBJ_Group;
     aVertex: TVertex;
     aFace: TOBJ_Face;
     SaveName: string;
-    g: integer;
 
 begin
+
   Memo.Lines.Add('Starting OBJ Export!');
 
-  SL := TStringList.Create;
-  //header
-  SL.Text := '# Alias OBJ Model File'+sLineBreak+'# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards'+SLineBreak+'# File units = meters'+sLineBreak;
-
-  g := 0;
-
-  //Construct Groups, verts and faces
-  for aGroup in anOBJ.children do
+  SaveName := StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]);
+  MessageBeep(MB_OK);
+  If FileExists(SaveName) then
+  begin
+    SaveDialog1.Filter := 'OBJ files (*.obj)|*.OBJ';
+    SaveDialog1.Options := [];
+    If SaveDialog1.Execute() then
     begin
-      SL.Add(sLineBreak+'g Mesh'+IntToStr(aGroup.id)+' '+aGroup.ter_def+' Model'+sLineBreak);
+      SaveName := SaveDialog1.FileName;
+    end;
+  end;
+  Writer := TStreamWriter.Create(SaveName, False,TEncoding.UTF8);
+
+  try
+    //header
+    Writer.WriteLine('# Alias OBJ Model File'+sLineBreak+'# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards'+SLineBreak+'# File units = meters'+sLineBreak);
+
+    //Construct Groups, verts and faces
+    for aGroup in anOBJ.children do
+    begin
+      Writer.WriteLine(sLineBreak+'g Mesh'+IntToStr(aGroup.id)+' '+aGroup.ter_def+' Model'+sLineBreak);
       for aVertex in aGroup.vertices do
         begin
           If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
             aVertex.height := 0;
 //          SL.Add('#'+IntToStr(aVertex.id));
-          SL.Add('v '+FloatToStrF(aVertex.long*ScaleFactor, ffFixed, 11,4)+' '+FloatToStrF(aVertex.lat*ScaleFactor, ffFixed, 11,4)+' '+FloatToStrF(aVertex.height, ffFixed, 11,4){+' #'+IntToStr(aVertex.id)});
+          Writer.WriteLine('v '+FloatToStrF(aVertex.long*ScaleFactor, ffFixed, 11,4)+' '+FloatToStrF(aVertex.lat*ScaleFactor, ffFixed, 11,4)+' '+FloatToStrF(aVertex.height, ffFixed, 11,4){+' #'+IntToStr(aVertex.id)});
         end;
 
       for aFace in aGroup.faces do
       begin
-        SL.Add('f '+IntToStr(aFace.v1)+' '+IntToStr(aFace.v2)+' '+IntToStr(aFace.v3));
+        Writer.WriteLine('f '+IntToStr(aFace.v1)+' '+IntToStr(aFace.v2)+' '+IntToStr(aFace.v3));
       end;
     end;
-
-
-  //save
-  Try
-    SaveName := StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]);
-    MessageBeep(MB_OK);
-    If FileExists(SaveName) then
-    begin
-      SaveDialog1.Filter := 'OBJ files (*.obj)|*.OBJ';
-      SaveDialog1.Options := [];
-      If SaveDialog1.Execute() then
-      begin
-        SaveName := SaveDialog1.FileName;
-      end;
-    end;
-    SL.SaveToFile(SaveName);
 
     Memo.Lines.Add('OBJ Export Succesful as '+SaveName+'!');
-  Finally
-    SL.Free;
-  End;
+  finally
+    Writer.Free;
+  end;
+
+
+//  Memo.Lines.Add('Starting OBJ Export!');
+//
+//  SL := TStringList.Create;
+//  //header
+//  SL.Text := '# Alias OBJ Model File'+sLineBreak+'# Exported from OBJ2XPMesh, (c) 2020 Richer Simulations, written by Zev Richards'+SLineBreak+'# File units = meters'+sLineBreak;
+//
+//
+//  //Construct Groups, verts and faces
+//  for aGroup in anOBJ.children do
+//    begin
+//      SL.Add(sLineBreak+'g Mesh'+IntToStr(aGroup.id)+' '+aGroup.ter_def+' Model'+sLineBreak);
+//      for aVertex in aGroup.vertices do
+//        begin
+//          If not ElevationCheckBox.Checked then   //if we aren't taking the heights from the Elevation RAW Raster set the defualt value to 0 instead of -32768
+//            aVertex.height := 0;
+////          SL.Add('#'+IntToStr(aVertex.id));
+//          SL.Add('v '+FloatToStrF(aVertex.long*ScaleFactor, ffFixed, 11,4)+' '+FloatToStrF(aVertex.lat*ScaleFactor, ffFixed, 11,4)+' '+FloatToStrF(aVertex.height, ffFixed, 11,4){+' #'+IntToStr(aVertex.id)});
+//        end;
+//
+//      for aFace in aGroup.faces do
+//      begin
+//        SL.Add('f '+IntToStr(aFace.v1)+' '+IntToStr(aFace.v2)+' '+IntToStr(aFace.v3));
+//      end;
+//    end;
+//
+//
+//  //save
+//  Try
+//    SaveName := StringReplace(DSFTXTEdit.Text,'.txt','.obj',[]);
+//    MessageBeep(MB_OK);
+//    If FileExists(SaveName) then
+//    begin
+//      SaveDialog1.Filter := 'OBJ files (*.obj)|*.OBJ';
+//      SaveDialog1.Options := [];
+//      If SaveDialog1.Execute() then
+//      begin
+//        SaveName := SaveDialog1.FileName;
+//      end;
+//    end;
+//    SL.SaveToFile(SaveName);
+//
+//    Memo.Lines.Add('OBJ Export Succesful as '+SaveName+'!');
+//  Finally
+//    SL.Free;
+//  End;
 
 end;
 
@@ -2204,7 +3091,7 @@ end;
 procedure TForm1.CombinePatches;
 var aPatch, aNewPatch: TPATCH;
     aNewDSF: TDSF;
-    ter_def, i: integer;
+    ter_def: integer;
     aPrimitive: TPRIMITIVE;
     aVertex: TVERTEX;
 
@@ -2221,7 +3108,7 @@ begin
 
   ter_def := -1;
 
-  aDSF.children.Sort(TComparer<TPATCH>.Construct(
+  aDSF.patches.Sort(TComparer<TPATCH>.Construct(
   function (const L,R: TPATCH): integer
   begin
     result := CompareInt(L.ter_def, R.ter_def);
@@ -2229,30 +3116,30 @@ begin
   ));
 
   aNewDSF := TDSF.create;
-  aNewDSF.children := TObjectList<TPATCH>.create;
+  aNewDSF.patches := TObjectList<TPATCH>.create;
 
-  for aPatch in aDSF.children do
+  for aPatch in aDSF.patches do
     begin
       if aPatch.ter_def <> ter_def then
       begin
         ter_def := aPATCH.ter_def;
         aNewPatch := TPATCH.create('BEGIN_PATCH '+IntToStr(ter_def)+' 0.000000 -1.000000 1 7');
         aNewPatch.children.AddRange(aPatch.children);
-        aNewDSF.children.add(aNewPatch);
+        aNewDSF.patches.add(aNewPatch);
       end
       else
         aNewPatch.children.addrange(aPatch.children);
     end;
 
   //sort Patches
-  aNewDSF.children.Sort(TComparer<TPATCH>.Construct(
+  aNewDSF.patches.Sort(TComparer<TPATCH>.Construct(
   function (const L,R: TPATCH): integer
   begin
     result := CompareInt(L.id, R.id);
   end
   ));
 
-  for aPatch in aNewDSF.children do
+  for aPatch in aNewDSF.patches do
     begin
       //sort primitives inside patches first
       aPatch.children.Sort(TComparer<TPRIMITIVE>.Construct(
