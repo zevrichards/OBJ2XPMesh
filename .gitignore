@@ -1,5 +1,6 @@
 Win32/
 __history/
+working/
 *.dproj.local
 *.identcache
 *.stat
